@@ -1,0 +1,51 @@
+# PostgreSQL + Redis para desenvolvimento local.
+# Credenciais alinhadas ao default em cmd/api/main.go (DATABASE_URL).
+#
+# Uso:
+#   docker compose up -d
+#   go run ./cmd/api migrate
+#   go run ./cmd/api serve
+#
+# Variáveis (opcional, ficheiro .env na mesma pasta):
+#   DATABASE_URL=postgres://harem:harem@localhost:5432/harem?sslmode=disable
+#   REDIS_URL=redis://localhost:6379/0
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: harem-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: harem
+      POSTGRES_PASSWORD: harem
+      POSTGRES_DB: harem
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U harem -d harem"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: harem-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+volumes:
+  postgres_data:
+  redis_data:
