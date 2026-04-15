@@ -81,9 +81,9 @@ func (s *Server) handleWebhookGeneric(w http.ResponseWriter, r *http.Request) {
 	provider := chi.URLParam(r, "provider")
 
 	validProviders := map[string]bool{
-		"stripe":       true,
-		"pagseguro":    true,
-		"mercadopago":  true,
+		"stripe":      true,
+		"pagseguro":   true,
+		"mercadopago": true,
 	}
 
 	if !validProviders[provider] {
@@ -115,8 +115,8 @@ func (s *Server) handleWebhookGeneric(w http.ResponseWriter, r *http.Request) {
 
 	// Return 200 quickly - processing is async
 	respondJSON(w, map[string]string{
-		"status":    "received",
-		"provider":  provider,
-		"event_id":  eventID,
+		"status":   "received",
+		"provider": provider,
+		"event_id": eventID,
 	})
 }
