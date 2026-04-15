@@ -1,0 +1,20 @@
+# Harém Brasil API Configuration
+# Copy this file to .env and update values for your environment
+
+# Server port (default: 40080)
+PORT=40080
+
+# Database connection string
+# For local Docker PostgreSQL:
+DATABASE_URL=postgres://postgres:postgres@localhost:54181/harem?sslmode=disable
+# For production:
+# DATABASE_URL=postgres://harem:password@localhost:5432/harem?sslmode=require
+
+# Redis connection string
+REDIS_URL=redis://localhost:6379/0
+
+# JWT secret - MUST be at least 32 characters in production
+JWT_SECRET=your-super-secret-jwt-key-change-in-production-min-32-chars
+
+# Environment (development, staging, production)
+ENV=development

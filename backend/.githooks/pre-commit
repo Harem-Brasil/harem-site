@@ -1,0 +1,34 @@
+#!/bin/sh
+# Pre-commit hook for Harém Brasil API
+# This hook runs lint and clean before each commit
+
+echo "Running pre-commit checks..."
+
+# Find the backend directory (hook is in .git/hooks, backend is at repo root/backend)
+HOOK_DIR="$(dirname "$0")"
+REPO_ROOT="$(cd "$HOOK_DIR/../.." && pwd)"
+BACKEND_DIR="$REPO_ROOT/backend"
+
+if [ ! -d "$BACKEND_DIR" ]; then
+    echo "❌ Backend directory not found at $BACKEND_DIR"
+    exit 1
+fi
+
+cd "$BACKEND_DIR" || exit 1
+
+# Run lint
+echo "→ Running make lint..."
+if ! make lint; then
+    echo "❌ Linting failed. Please fix the issues before committing."
+    exit 1
+fi
+
+# Run clean (removes build artifacts)
+echo "→ Running make clean..."
+if ! make clean; then
+    echo "❌ Clean failed."
+    exit 1
+fi
+
+echo "✅ Pre-commit checks passed!"
+exit 0
