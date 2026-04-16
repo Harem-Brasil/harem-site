@@ -1,4 +1,4 @@
-.PHONY: all build test clean run migrate serve lint
+.PHONY: all build test bdd test-coverage clean run migrate serve lint
 
 # Default environment
 export PORT ?= 40080
@@ -16,6 +16,9 @@ build:
 
 test:
 	go test -v ./...
+
+bdd:
+	go test -v -timeout 5m ./features/...
 
 test-coverage:
 	go test -coverprofile=coverage.out ./...
