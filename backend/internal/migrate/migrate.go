@@ -73,7 +73,8 @@ func (m *Migrator) Up() error {
 	}
 
 	for _, file := range files {
-		if _, ok := applied[file]; ok {
+		version := strings.TrimSuffix(file, ".sql")
+		if _, ok := applied[version]; ok {
 			slog.Debug("migration already applied", "file", file)
 			continue
 		}
