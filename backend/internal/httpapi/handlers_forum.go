@@ -4,11 +4,16 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strings"
+	"unicode"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"golang.org/x/text/runes"
+	"golang.org/x/text/transform"
+	"golang.org/x/text/unicode/norm"
 
 	httpmw "github.com/harem-brasil/backend/internal/middleware"
 )
@@ -296,15 +301,29 @@ func (s *Server) handleCreateForumPost(w http.ResponseWriter, r *http.Request) {
 }
 
 func slugify(title string) string {
+	// Unicode normalization: decompose accented characters and remove combining marks
+	t := transform.Chain(norm.NFD, runes.Remove(runes.In(unicode.Mn)), norm.NFC)
+	normalized, _, _ := transform.String(t, title)
+
 	result := ""
-	for _, r := range title {
-		if r >= 'a' && r <= 'z' || r >= '0' && r <= '9' {
+	for _, r := range normalized {
+		switch {
+		case r >= 'a' && r <= 'z' || r >= '0' && r <= '9':
 			result += string(r)
-		} else if r >= 'A' && r <= 'Z' {
+		case r >= 'A' && r <= 'Z':
 			result += string(r + ('a' - 'A'))
-		} else if r == ' ' {
+		case r == ' ', r == '-', r == '_':
 			result += "-"
 		}
 	}
+
+	// Clean up multiple consecutive dashes
+	for strings.Contains(result, "--") {
+		result = strings.ReplaceAll(result, "--", "-")
+	}
+
+	// Trim leading/trailing dashes
+	result = strings.Trim(result, "-")
+
 	return result
 }

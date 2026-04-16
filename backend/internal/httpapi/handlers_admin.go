@@ -3,6 +3,7 @@ package httpapi
 import (
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -44,7 +45,7 @@ func (s *Server) handleAdminListUsers(w http.ResponseWriter, r *http.Request) {
 
 	nextCursor := ""
 	if hasMore && len(users) > 0 {
-		nextCursor = users[len(users)-1].(UserPublic).ID
+		nextCursor = users[len(users)-1].(UserPublic).CreatedAt
 	}
 
 	respondJSON(w, CursorPage{
@@ -113,11 +114,21 @@ func (s *Server) handleAdminStats(w http.ResponseWriter, r *http.Request) {
 		ActiveSubscriptions int `json:"active_subscriptions"`
 	}
 
-	_ = s.db.QueryRow(r.Context(), `SELECT COUNT(*) FROM users WHERE deleted_at IS NULL`).Scan(&stats.TotalUsers)
-	_ = s.db.QueryRow(r.Context(), `SELECT COUNT(*) FROM users WHERE deleted_at IS NULL AND last_seen_at > NOW() - INTERVAL '30 days'`).Scan(&stats.ActiveUsers)
-	_ = s.db.QueryRow(r.Context(), `SELECT COUNT(*) FROM posts WHERE deleted_at IS NULL`).Scan(&stats.TotalPosts)
-	_ = s.db.QueryRow(r.Context(), `SELECT COUNT(*) FROM users WHERE role = 'creator'`).Scan(&stats.TotalCreators)
-	_ = s.db.QueryRow(r.Context(), `SELECT COUNT(*) FROM subscriptions WHERE status = 'active'`).Scan(&stats.ActiveSubscriptions)
+	if err := s.db.QueryRow(r.Context(), `SELECT COUNT(*) FROM users WHERE deleted_at IS NULL`).Scan(&stats.TotalUsers); err != nil {
+		slog.Error("failed to get total users", "error", err)
+	}
+	if err := s.db.QueryRow(r.Context(), `SELECT COUNT(*) FROM users WHERE deleted_at IS NULL AND last_seen_at > NOW() - INTERVAL '30 days'`).Scan(&stats.ActiveUsers); err != nil {
+		slog.Error("failed to get active users", "error", err)
+	}
+	if err := s.db.QueryRow(r.Context(), `SELECT COUNT(*) FROM posts WHERE deleted_at IS NULL`).Scan(&stats.TotalPosts); err != nil {
+		slog.Error("failed to get total posts", "error", err)
+	}
+	if err := s.db.QueryRow(r.Context(), `SELECT COUNT(*) FROM users WHERE role = 'creator'`).Scan(&stats.TotalCreators); err != nil {
+		slog.Error("failed to get total creators", "error", err)
+	}
+	if err := s.db.QueryRow(r.Context(), `SELECT COUNT(*) FROM subscriptions WHERE status = 'active'`).Scan(&stats.ActiveSubscriptions); err != nil {
+		slog.Error("failed to get active subscriptions", "error", err)
+	}
 
 	respondJSON(w, stats)
 }
@@ -167,7 +178,7 @@ func (s *Server) handleAdminAuditLog(w http.ResponseWriter, r *http.Request) {
 
 	nextCursor := ""
 	if hasMore && len(entries) > 0 {
-		nextCursor = entries[len(entries)-1].(AuditLogEntry).ID
+		nextCursor = entries[len(entries)-1].(AuditLogEntry).CreatedAt
 	}
 
 	respondJSON(w, CursorPage{

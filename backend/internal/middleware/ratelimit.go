@@ -21,31 +21,52 @@ func extractIP(remoteAddr string) string {
 	return remoteAddr
 }
 
-// getClientIP returns the client IP, checking X-Forwarded-For if behind a proxy
-func getClientIP(r *http.Request) string {
-	// Check X-Forwarded-For header (common when behind reverse proxy)
-	xff := r.Header.Get("X-Forwarded-For")
-	if xff != "" {
-		// Take the first IP if multiple are present
-		if idx := strings.Index(xff, ","); idx != -1 {
-			xff = xff[:idx]
+// trustedProxies contains IPs of known reverse proxies that can set X-Forwarded-For
+var trustedProxies = []string{"127.0.0.1", "::1", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"}
+
+// isTrustedProxy checks if the remote IP is in the trusted proxies list
+func isTrustedProxy(remoteIP string) bool {
+	for _, trusted := range trustedProxies {
+		if strings.Contains(trusted, "/") {
+			// CIDR range check (simplified)
+			if strings.HasPrefix(remoteIP, trusted[:strings.Index(trusted, ".")+1]) {
+				return true
+			}
+		} else if remoteIP == trusted {
+			return true
 		}
-		return strings.TrimSpace(xff)
 	}
+	return false
+}
 
-	// Check X-Real-Ip header
-	xri := r.Header.Get("X-Real-Ip")
-	if xri != "" {
-		return xri
-	}
-
-	// Fall back to RemoteAddr
-	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+// getClientIP returns the client IP, validating X-Forwarded-For only from trusted proxies
+func getClientIP(r *http.Request) string {
+	// Get the remote IP (the immediate connection)
+	remoteIP, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
-		// If splitting fails, use as-is (might already be just IP)
-		return r.RemoteAddr
+		remoteIP = r.RemoteAddr
 	}
-	return ip
+
+	// Only trust X-Forwarded-For headers from trusted proxies
+	if isTrustedProxy(remoteIP) {
+		// Check X-Forwarded-For header
+		xff := r.Header.Get("X-Forwarded-For")
+		if xff != "" {
+			// Take the first IP (closest to the client)
+			if idx := strings.Index(xff, ","); idx != -1 {
+				xff = xff[:idx]
+			}
+			return strings.TrimSpace(xff)
+		}
+
+		// Check X-Real-Ip header
+		xri := r.Header.Get("X-Real-Ip")
+		if xri != "" {
+			return xri
+		}
+	}
+
+	return remoteIP
 }
 
 func RateLimit(redis *redis.Client, logger *slog.Logger) func(http.Handler) http.Handler {
