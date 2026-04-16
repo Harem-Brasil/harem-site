@@ -16,7 +16,6 @@ pipeline {
     TARGET_HOST     = 'web1'  // Ajuste para seu servidor de deploy
     TARGET_DIR      = '/var/www/vhosts/api.harembrasil.com.br'
     SERVICE_NAME    = 'harem-api'
-    SSH_CREDENTIALS = 'harem-jenkins-ssh-key'  // Jenkins credential ID (Username with private key)
 
     // Secrets - configure no Jenkins Credentials
     DATABASE_URL    = credentials('harem-brasil-database-url')
@@ -97,8 +96,7 @@ pipeline {
     stage('Deploy Backend') {
       steps {
         unstash "bin-amd64"
-        sshagent(credentials: [env.SSH_CREDENTIALS]) {
-          sh label: 'Upload & install binary', script: '''
+        sh label: 'Upload & install binary', script: '''
 set -euo pipefail
 BIN_LOCAL="artifacts/harem-api-linux-amd64"
 
@@ -170,8 +168,7 @@ SERVICEFILE
   sudo systemctl enable ${SERVICE_NAME}
   sudo systemctl restart ${SERVICE_NAME}
   sudo systemctl status ${SERVICE_NAME} --no-pager
-"
-          '''
+"'''
         }
       }
     }
