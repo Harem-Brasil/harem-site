@@ -102,7 +102,7 @@ BIN_LOCAL="artifacts/harem-api-linux-amd64"
 
 # Criar arquivo .env localmente (segurança: não expor segredos na linha de comando)
 cat > /tmp/harem-api.env << EOF
-PORT=8080
+PORT=40080
 DATABASE_URL=${DATABASE_URL}
 REDIS_URL=${REDIS_URL}
 JWT_SECRET=${JWT_SECRET}
