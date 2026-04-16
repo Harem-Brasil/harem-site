@@ -199,5 +199,23 @@ func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
+	// Get refresh token from request body
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "Failed to read request body")
+		return
+	}
+
+	var req struct {
+		RefreshToken string `json:"refresh_token"`
+	}
+	if err := json.Unmarshal(body, &req); err == nil && req.RefreshToken != "" {
+		// Revoke the session in the database
+		_, _ = s.db.Exec(r.Context(),
+			`UPDATE sessions SET revoked_at = NOW() WHERE refresh_token = $1`,
+			req.RefreshToken,
+		)
+	}
+
 	respondNoContent(w)
 }
