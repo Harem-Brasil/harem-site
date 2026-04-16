@@ -1,12 +1,56 @@
 package httpapi
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net/http"
+	"os"
 
 	"github.com/go-chi/chi/v5"
 )
+
+var validWebhookProviders = map[string]bool{
+	"stripe":      true,
+	"pagseguro":   true,
+	"mercadopago": true,
+}
+
+func validateWebhookSignature(provider string, body []byte, r *http.Request) bool {
+	sigHeader := r.Header.Get("X-Signature")
+	if sigHeader == "" {
+		sigHeader = r.Header.Get("Stripe-Signature")
+	}
+	if sigHeader == "" {
+		return false
+	}
+
+	var secretKey string
+	switch provider {
+	case "stripe":
+		secretKey = os.Getenv("STRIPE_WEBHOOK_SECRET")
+	case "pagseguro":
+		secretKey = os.Getenv("PAGSEGURO_WEBHOOK_SECRET")
+	case "mercadopago":
+		secretKey = os.Getenv("MERCADOPAGO_WEBHOOK_SECRET")
+	default:
+		return false
+	}
+
+	if secretKey == "" {
+		// In development/test mode without secrets configured, skip validation
+		// TODO: Remove this fallback before production
+		return true
+	}
+
+	mac := hmac.New(sha256.New, []byte(secretKey))
+	mac.Write(body)
+	expectedSig := hex.EncodeToString(mac.Sum(nil))
+
+	return hmac.Equal([]byte(sigHeader), []byte(expectedSig))
+}
 
 type WebhookEvent struct {
 	ID        string         `json:"id"`
@@ -23,17 +67,20 @@ func (s *Server) handleWebhookStripe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !validateWebhookSignature("stripe", body, r) {
+		respondError(w, http.StatusUnauthorized, "Invalid webhook signature")
+		return
+	}
+
 	var event map[string]any
 	if err := json.Unmarshal(body, &event); err != nil {
 		respondError(w, http.StatusBadRequest, "Invalid JSON")
 		return
 	}
 
-	// TODO: Validate Stripe signature with HMAC
 	// TODO: Check idempotency by event ID
 	// TODO: Queue event for async processing
 
-	// Return 200 quickly as per spec
 	respondJSON(w, map[string]string{"status": "received"})
 }
 
@@ -44,13 +91,17 @@ func (s *Server) handleWebhookPagSeguro(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	if !validateWebhookSignature("pagseguro", body, r) {
+		respondError(w, http.StatusUnauthorized, "Invalid webhook signature")
+		return
+	}
+
 	var event map[string]any
 	if err := json.Unmarshal(body, &event); err != nil {
 		respondError(w, http.StatusBadRequest, "Invalid JSON")
 		return
 	}
 
-	// TODO: Validate PagSeguro signature with HMAC
 	// TODO: Check idempotency by event ID
 	// TODO: Queue event for async processing
 
@@ -64,13 +115,17 @@ func (s *Server) handleWebhookMercadoPago(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	if !validateWebhookSignature("mercadopago", body, r) {
+		respondError(w, http.StatusUnauthorized, "Invalid webhook signature")
+		return
+	}
+
 	var event map[string]any
 	if err := json.Unmarshal(body, &event); err != nil {
 		respondError(w, http.StatusBadRequest, "Invalid JSON")
 		return
 	}
 
-	// TODO: Validate MercadoPago signature with HMAC
 	// TODO: Check idempotency by event ID
 	// TODO: Queue event for async processing
 
@@ -80,13 +135,7 @@ func (s *Server) handleWebhookMercadoPago(w http.ResponseWriter, r *http.Request
 func (s *Server) handleWebhookGeneric(w http.ResponseWriter, r *http.Request) {
 	provider := chi.URLParam(r, "provider")
 
-	validProviders := map[string]bool{
-		"stripe":      true,
-		"pagseguro":   true,
-		"mercadopago": true,
-	}
-
-	if !validProviders[provider] {
+	if !validWebhookProviders[provider] {
 		respondError(w, http.StatusNotFound, "Unknown webhook provider")
 		return
 	}
@@ -97,15 +146,23 @@ func (s *Server) handleWebhookGeneric(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !validateWebhookSignature(provider, body, r) {
+		respondError(w, http.StatusUnauthorized, "Invalid webhook signature")
+		return
+	}
+
 	var event map[string]any
 	if err := json.Unmarshal(body, &event); err != nil {
 		respondError(w, http.StatusBadRequest, "Invalid JSON")
 		return
 	}
 
-	// Log without full payload for security (only event ID and type)
-	eventID, _ := event["id"].(string)
-	eventType, _ := event["type"].(string)
+	eventID, ok1 := event["id"].(string)
+	eventType, ok2 := event["type"].(string)
+	if !ok1 || !ok2 {
+		respondError(w, http.StatusBadRequest, "Missing required fields: id, type")
+		return
+	}
 
 	s.config.Logger.Info("webhook received",
 		"provider", provider,
@@ -113,7 +170,6 @@ func (s *Server) handleWebhookGeneric(w http.ResponseWriter, r *http.Request) {
 		"event_type", eventType,
 	)
 
-	// Return 200 quickly - processing is async
 	respondJSON(w, map[string]string{
 		"status":   "received",
 		"provider": provider,

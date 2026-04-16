@@ -123,7 +123,7 @@ func (s *Server) handleCreatorCatalog(w http.ResponseWriter, r *http.Request) {
 		`SELECT id, title, description, price_cents, currency, visibility, created_at 
 		 FROM creator_catalog 
 		 WHERE creator_id = $1 AND deleted_at IS NULL
-		 AND ($2 = '' OR id > $2)
+		 AND ($2 = '' OR created_at < $2)
 		 ORDER BY created_at DESC LIMIT $3`,
 		user.UserID, cursor, limit+1,
 	)
@@ -166,7 +166,7 @@ func (s *Server) handleCreatorCatalog(w http.ResponseWriter, r *http.Request) {
 			Currency    string `json:"currency"`
 			Visibility  string `json:"visibility"`
 			CreatedAt   string `json:"created_at"`
-		}).ID
+		}).CreatedAt
 	}
 
 	respondJSON(w, CursorPage{
@@ -190,7 +190,7 @@ func (s *Server) handleCreatorOrders(w http.ResponseWriter, r *http.Request) {
 		`SELECT id, buyer_id, item_id, status, amount_cents, currency, created_at 
 		 FROM creator_orders 
 		 WHERE creator_id = $1
-		 AND ($2 = '' OR id > $2)
+		 AND ($2 = '' OR created_at < $2)
 		 ORDER BY created_at DESC LIMIT $3`,
 		user.UserID, cursor, limit+1,
 	)
@@ -233,7 +233,7 @@ func (s *Server) handleCreatorOrders(w http.ResponseWriter, r *http.Request) {
 			AmountCents int    `json:"amount_cents"`
 			Currency    string `json:"currency"`
 			CreatedAt   string `json:"created_at"`
-		}).ID
+		}).CreatedAt
 	}
 
 	respondJSON(w, CursorPage{

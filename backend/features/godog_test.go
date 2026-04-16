@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/cucumber/godog"
+	"github.com/golang-jwt/jwt/v5"
 
 	"github.com/harem-brasil/backend/internal/httpapi"
 )
@@ -141,16 +142,21 @@ func iAmNotAuthenticated() error {
 	return nil
 }
 
+const testJWTSecret = "test-jwt-secret-that-is-long-enough-for-tests-32chars"
+
 func generateTestToken(username, role string) string {
-	// Simplified token generation for tests
-	claims := map[string]any{
+	claims := jwt.MapClaims{
 		"sub":  username,
 		"role": role,
 		"exp":  time.Now().Add(time.Hour).Unix(),
+		"iat":  time.Now().Unix(),
+		"iss":  "harem-api",
+		"aud":  "harem-client",
+		"type": "access",
 	}
-	// In real implementation, sign with JWT secret
-	data, _ := json.Marshal(claims)
-	return string(data)
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	signed, _ := token.SignedString([]byte(testJWTSecret))
+	return signed
 }
 
 func iHaveAValidRegistrationPayload(table *godog.Table) error {

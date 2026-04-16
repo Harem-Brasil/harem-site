@@ -93,16 +93,15 @@ DELETE Remoção lógica (deleted\_at) salvo purge admin.
 
 ## **2.2 Cabeçalhos comuns**
 
-**Cabeçalho Descrição** 
+**Cabeçalho** | **Descrição**
 
-Authorization: Bearer   
-\<access\_token\>Obrigatório nas rotas autenticadas (exceto públicas).
+Authorization: Bearer `<access_token>` | Obrigatório nas rotas autenticadas (exceto públicas).
 
-**Cabeçalho Descrição** 
+X-Request-Id | Opcional do cliente; se ausente, gerar (uuid ou ULID) e ecoar na resposta.
 
-X-Request-IdOpcional do cliente; se ausente, gerar (uuid ou ULID) e ecoar na resposta. 
+Idempotency-Key: `<uuid>` | Obrigatório em POST de cobrança, subscrição ou encomenda.
 
-Idempotency-Key: \<uuid\> Obrigatório em POST de cobrança, subscrição ou encomenda. If-Match: "\<etag\>" Opcional em PATCH com controlo de concorrência. 
+If-Match: `<etag>` | Opcional em PATCH com controlo de concorrência.
 
 ## **2.3 Paginação (cursor)**
 
@@ -265,9 +264,7 @@ Salas, membros, GET .../messages (cursor, limit, before). Envio em tempo real vi
 
 ## **6.8 Assinaturas**
 
-GET /billing/plans, POST /billing/checkout (**Idempotency-Key**), GET 
-
-/billing/subscription, cancel/resume. 
+GET /billing/plans, POST /billing/checkout (**Idempotency-Key**), GET /billing/subscription, POST /billing/subscription/cancel, POST /billing/subscription/resume.
 
 Estado final coerente após webhook \+ BD. 
 

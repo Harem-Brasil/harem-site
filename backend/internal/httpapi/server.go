@@ -16,11 +16,12 @@ import (
 )
 
 type Config struct {
-	Port      string
-	DBURL     string
-	RedisURL  string
-	JWTSecret string
-	Logger    *slog.Logger
+	Port        string
+	DBURL       string
+	RedisURL    string
+	JWTSecret   string
+	Logger      *slog.Logger
+	MaxFileSize int64
 }
 
 type Server struct {

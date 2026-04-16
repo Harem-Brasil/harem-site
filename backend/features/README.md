@@ -44,7 +44,7 @@ Defina as variáveis de ambiente:
 ```bash
 export DATABASE_URL="postgres://user:pass@localhost/harem_test"
 export REDIS_URL="redis://localhost:6379/1"
-export JWT_SECRET="test-secret-min-32-characters-long"
+export JWT_SECRET="$(openssl rand -hex 32)"
 ```
 
 ## Escrevendo Novos Cenários

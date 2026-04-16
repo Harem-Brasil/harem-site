@@ -259,6 +259,12 @@ func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Revoke the old refresh token
+	_, _ = s.db.Exec(r.Context(),
+		`UPDATE sessions SET revoked_at = NOW() WHERE refresh_token = $1`,
+		req.RefreshToken,
+	)
+
 	refreshExpiry := time.Now().UTC().Add(7 * 24 * time.Hour)
 	_, err = s.db.Exec(r.Context(),
 		`INSERT INTO sessions (id, user_id, refresh_token, expires_at) VALUES ($1, $2, $3, $4)`,
@@ -278,6 +284,22 @@ func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "Failed to read request body")
+		return
+	}
+
+	var req struct {
+		RefreshToken string `json:"refresh_token"`
+	}
+	if err := json.Unmarshal(body, &req); err == nil && req.RefreshToken != "" {
+		_, _ = s.db.Exec(r.Context(),
+			`UPDATE sessions SET revoked_at = NOW() WHERE refresh_token = $1`,
+			req.RefreshToken,
+		)
+	}
+
 	respondNoContent(w)
 }
 

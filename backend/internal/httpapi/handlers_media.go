@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -53,9 +54,12 @@ func (s *Server) handleCreateUploadSession(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Max file size: 100MB
-	if req.Size > 100*1024*1024 {
-		respondValidationError(w, map[string]string{"size": "File too large (max 100MB)"})
+	maxFileSize := s.config.MaxFileSize
+	if maxFileSize == 0 {
+		maxFileSize = 100 * 1024 * 1024 // default 100MB
+	}
+	if req.Size > maxFileSize {
+		respondValidationError(w, map[string]string{"size": fmt.Sprintf("File too large (max %d bytes)", maxFileSize)})
 		return
 	}
 

@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
@@ -224,13 +225,20 @@ func (s *Server) handleResumeSubscription(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	_, err := s.db.Exec(r.Context(),
+	subID := chi.URLParam(r, "id")
+
+	result, err := s.db.Exec(r.Context(),
 		`UPDATE subscriptions SET status = 'active', updated_at = NOW() 
-		 WHERE user_id = $1 AND status = 'canceled'`,
-		user.UserID,
+		 WHERE id = $1 AND user_id = $2 AND status = 'canceled'`,
+		subID, user.UserID,
 	)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "Failed to resume subscription")
+		return
+	}
+
+	if result.RowsAffected() == 0 {
+		respondError(w, http.StatusNotFound, "Canceled subscription not found")
 		return
 	}
 

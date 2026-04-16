@@ -40,7 +40,7 @@ func (s *Server) handleListPosts(w http.ResponseWriter, r *http.Request) {
 		 FROM posts p
 		 JOIN users u ON p.author_id = u.id
 		 WHERE p.deleted_at IS NULL AND p.visibility = 'public'
-		 AND ($1 = '' OR p.id > $1)
+		 AND ($1 = '' OR p.created_at < $1)
 		 ORDER BY p.created_at DESC LIMIT $2`,
 		cursor, limit+1,
 	)
@@ -70,7 +70,7 @@ func (s *Server) handleListPosts(w http.ResponseWriter, r *http.Request) {
 
 	nextCursor := ""
 	if hasMore && len(posts) > 0 {
-		nextCursor = posts[len(posts)-1].(PostResponse).ID
+		nextCursor = posts[len(posts)-1].(PostResponse).CreatedAt
 	}
 
 	respondJSON(w, CursorPage{
@@ -304,7 +304,7 @@ func (s *Server) handleListComments(w http.ResponseWriter, r *http.Request) {
 		 FROM post_comments c
 		 JOIN users u ON c.author_id = u.id
 		 WHERE c.post_id = $1 AND c.deleted_at IS NULL
-		 AND ($2 = '' OR c.id > $2)
+		 AND ($2 = '' OR c.created_at < $2)
 		 ORDER BY c.created_at DESC LIMIT $3`,
 		id, cursor, limit+1,
 	)
@@ -334,7 +334,7 @@ func (s *Server) handleListComments(w http.ResponseWriter, r *http.Request) {
 
 	nextCursor := ""
 	if hasMore && len(comments) > 0 {
-		nextCursor = comments[len(comments)-1].(CommentResponse).ID
+		nextCursor = comments[len(comments)-1].(CommentResponse).CreatedAt
 	}
 
 	respondJSON(w, CursorPage{
@@ -409,7 +409,7 @@ func (s *Server) handleFeedHome(w http.ResponseWriter, r *http.Request) {
 		 WHERE p.deleted_at IS NULL 
 		 AND (p.visibility = 'public' OR p.author_id = $1 OR 
 		      EXISTS(SELECT 1 FROM subscriptions s WHERE s.user_id = $1 AND s.status = 'active' AND s.creator_id = p.author_id))
-		 AND ($2 = '' OR p.id > $2)
+		 AND ($2 = '' OR p.created_at < $2)
 		 ORDER BY p.created_at DESC LIMIT $3`,
 		user.UserID, cursor, limit+1,
 	)
@@ -439,7 +439,7 @@ func (s *Server) handleFeedHome(w http.ResponseWriter, r *http.Request) {
 
 	nextCursor := ""
 	if hasMore && len(posts) > 0 {
-		nextCursor = posts[len(posts)-1].(PostResponse).ID
+		nextCursor = posts[len(posts)-1].(PostResponse).CreatedAt
 	}
 
 	respondJSON(w, CursorPage{

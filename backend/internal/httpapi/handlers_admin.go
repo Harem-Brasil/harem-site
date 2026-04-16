@@ -44,7 +44,7 @@ func (s *Server) handleAdminListUsers(w http.ResponseWriter, r *http.Request) {
 
 	nextCursor := ""
 	if hasMore && len(users) > 0 {
-		nextCursor = users[len(users)-1].(UserPublic).ID
+		nextCursor = users[len(users)-1].(UserPublic).CreatedAt
 	}
 
 	respondJSON(w, CursorPage{
@@ -167,7 +167,7 @@ func (s *Server) handleAdminAuditLog(w http.ResponseWriter, r *http.Request) {
 
 	nextCursor := ""
 	if hasMore && len(entries) > 0 {
-		nextCursor = entries[len(entries)-1].(AuditLogEntry).ID
+		nextCursor = entries[len(entries)-1].(AuditLogEntry).CreatedAt
 	}
 
 	respondJSON(w, CursorPage{

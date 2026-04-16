@@ -144,8 +144,8 @@ func (s *Server) handleListUsers(w http.ResponseWriter, r *http.Request) {
 
 	rows, err := s.db.Query(r.Context(),
 		`SELECT id, username, role, avatar_url, created_at FROM users 
-		 WHERE deleted_at IS NULL AND ($1 = '' OR id > $1) 
-		 ORDER BY id LIMIT $2`,
+		 WHERE deleted_at IS NULL AND ($1 = '' OR created_at < $1)
+		 ORDER BY created_at DESC LIMIT $2`,
 		cursor, limit+1,
 	)
 	if err != nil {
@@ -171,7 +171,7 @@ func (s *Server) handleListUsers(w http.ResponseWriter, r *http.Request) {
 
 	nextCursor := ""
 	if hasMore && len(users) > 0 {
-		nextCursor = users[len(users)-1].(UserPublic).ID
+		nextCursor = users[len(users)-1].(UserPublic).CreatedAt
 	}
 
 	respondJSON(w, CursorPage{
@@ -192,7 +192,7 @@ func (s *Server) handleGetUserPosts(w http.ResponseWriter, r *http.Request) {
 		 FROM posts p
 		 JOIN users u ON p.author_id = u.id
 		 WHERE p.author_id = $1 AND p.deleted_at IS NULL AND p.visibility = 'public'
-		 AND ($2 = '' OR p.id > $2)
+		 AND ($2 = '' OR p.created_at < $2)
 		 ORDER BY p.created_at DESC LIMIT $3`,
 		userID, cursor, limit+1,
 	)
@@ -222,7 +222,7 @@ func (s *Server) handleGetUserPosts(w http.ResponseWriter, r *http.Request) {
 
 	nextCursor := ""
 	if hasMore && len(posts) > 0 {
-		nextCursor = posts[len(posts)-1].(PostResponse).ID
+		nextCursor = posts[len(posts)-1].(PostResponse).CreatedAt
 	}
 
 	respondJSON(w, CursorPage{
@@ -242,14 +242,13 @@ func (s *Server) handleSearchUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	searchPattern := "%" + query + "%"
-
 	rows, err := s.db.Query(r.Context(),
 		`SELECT id, username, role, avatar_url, created_at FROM users 
-		 WHERE deleted_at IS NULL AND (username ILIKE $1 OR bio ILIKE $1)
-		 AND ($2 = '' OR id > $2) 
-		 ORDER BY id LIMIT $3`,
-		searchPattern, cursor, limit+1,
+		 WHERE deleted_at IS NULL
+		 AND (to_tsvector('portuguese', coalesce(username,'') || ' ' || coalesce(bio,'')) @@ plainto_tsquery('portuguese', $1))
+		 AND ($2 = '' OR created_at < $2)
+		 ORDER BY created_at DESC LIMIT $3`,
+		query, cursor, limit+1,
 	)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "Database error")
