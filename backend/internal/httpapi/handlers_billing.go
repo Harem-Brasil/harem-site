@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
@@ -143,4 +144,103 @@ func (s *Server) handleGetMySubscription(w http.ResponseWriter, r *http.Request)
 	}
 
 	respondJSON(w, sub)
+}
+
+func (s *Server) handleBillingCheckout(w http.ResponseWriter, r *http.Request) {
+	user := httpmw.GetUser(r.Context())
+	if user == nil {
+		respondError(w, http.StatusUnauthorized, "Not authenticated")
+		return
+	}
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "Failed to read request body")
+		return
+	}
+
+	var req struct {
+		PlanID string `json:"plan_id"`
+	}
+	if err := json.Unmarshal(body, &req); err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid JSON")
+		return
+	}
+
+	if req.PlanID == "" {
+		respondValidationError(w, map[string]string{"plan_id": "Required"})
+		return
+	}
+
+	var plan Plan
+	err = s.db.QueryRow(r.Context(),
+		`SELECT id, name, slug, description, price, currency, interval, features, is_active 
+		 FROM plans WHERE id = $1 AND is_active = true`,
+		req.PlanID,
+	).Scan(&plan.ID, &plan.Name, &plan.Slug, &plan.Description, &plan.Price, &plan.Currency, &plan.Interval, &plan.Features, &plan.IsActive)
+
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			respondError(w, http.StatusNotFound, "Plan not found")
+			return
+		}
+		respondError(w, http.StatusInternalServerError, "Database error")
+		return
+	}
+
+	sessionID := uuid.New().String()
+
+	respondCreated(w, map[string]any{
+		"checkout_session_id": sessionID,
+		"plan":                plan,
+		"payment_url":         "/payment/not-implemented",
+		"status":              "pending",
+	})
+}
+
+func (s *Server) handleCancelSubscription(w http.ResponseWriter, r *http.Request) {
+	user := httpmw.GetUser(r.Context())
+	if user == nil {
+		respondError(w, http.StatusUnauthorized, "Not authenticated")
+		return
+	}
+
+	_, err := s.db.Exec(r.Context(),
+		`UPDATE subscriptions SET status = 'canceled', updated_at = NOW() 
+		 WHERE user_id = $1 AND status = 'active'`,
+		user.UserID,
+	)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "Failed to cancel subscription")
+		return
+	}
+
+	respondNoContent(w)
+}
+
+func (s *Server) handleResumeSubscription(w http.ResponseWriter, r *http.Request) {
+	user := httpmw.GetUser(r.Context())
+	if user == nil {
+		respondError(w, http.StatusUnauthorized, "Not authenticated")
+		return
+	}
+
+	subID := chi.URLParam(r, "id")
+
+	result, err := s.db.Exec(r.Context(),
+		`UPDATE subscriptions SET status = 'active', updated_at = NOW() 
+		 WHERE id = $1 AND user_id = $2 AND status = 'canceled'`,
+		subID, user.UserID,
+	)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "Failed to resume subscription")
+		return
+	}
+
+	if result.RowsAffected() == 0 {
+		respondError(w, http.StatusNotFound, "Canceled subscription not found")
+		return
+	}
+
+	respondNoContent(w)
 }

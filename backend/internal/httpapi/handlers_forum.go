@@ -87,7 +87,7 @@ func (s *Server) handleListForumTopics(w http.ResponseWriter, r *http.Request) {
 			 FROM forum_topics t
 			 JOIN users u ON t.author_id = u.id
 			 WHERE t.category_id = $1 AND t.deleted_at IS NULL
-			 AND ($2 = '' OR t.id > $2)
+			 AND ($2 = '' OR t.last_reply_at < $2)
 			 ORDER BY t.is_pinned DESC, t.last_reply_at DESC LIMIT $3`,
 			categoryID, cursor, limit+1)
 	} else {
@@ -98,7 +98,7 @@ func (s *Server) handleListForumTopics(w http.ResponseWriter, r *http.Request) {
 			 FROM forum_topics t
 			 JOIN users u ON t.author_id = u.id
 			 WHERE t.deleted_at IS NULL
-			 AND ($1 = '' OR t.id > $1)
+			 AND ($1 = '' OR t.last_reply_at < $1)
 			 ORDER BY t.is_pinned DESC, t.last_reply_at DESC LIMIT $2`,
 			cursor, limit+1)
 	}
@@ -134,7 +134,7 @@ func (s *Server) handleListForumTopics(w http.ResponseWriter, r *http.Request) {
 
 	nextCursor := ""
 	if hasMore && len(topics) > 0 {
-		nextCursor = topics[len(topics)-1].(ForumTopic).ID
+		nextCursor = topics[len(topics)-1].(ForumTopic).LastReplyAt
 	}
 
 	respondJSON(w, CursorPage{

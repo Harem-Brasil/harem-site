@@ -108,3 +108,137 @@ func (s *Server) handleCreatorEarnings(w http.ResponseWriter, r *http.Request) {
 		"total":    0.0,
 	})
 }
+
+func (s *Server) handleCreatorCatalog(w http.ResponseWriter, r *http.Request) {
+	user := httpmw.GetUser(r.Context())
+	if user == nil {
+		respondError(w, http.StatusUnauthorized, "Not authenticated")
+		return
+	}
+
+	cursor := r.URL.Query().Get("cursor")
+	limit := 20
+
+	rows, err := s.db.Query(r.Context(),
+		`SELECT id, title, description, price_cents, currency, visibility, created_at 
+		 FROM creator_catalog 
+		 WHERE creator_id = $1 AND deleted_at IS NULL
+		 AND ($2 = '' OR created_at < $2)
+		 ORDER BY created_at DESC LIMIT $3`,
+		user.UserID, cursor, limit+1,
+	)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "Database error")
+		return
+	}
+	defer rows.Close()
+
+	var items []any
+	for rows.Next() {
+		var item struct {
+			ID          string `json:"id"`
+			Title       string `json:"title"`
+			Description string `json:"description"`
+			PriceCents  int    `json:"price_cents"`
+			Currency    string `json:"currency"`
+			Visibility  string `json:"visibility"`
+			CreatedAt   string `json:"created_at"`
+		}
+		err := rows.Scan(&item.ID, &item.Title, &item.Description, &item.PriceCents, &item.Currency, &item.Visibility, &item.CreatedAt)
+		if err != nil {
+			continue
+		}
+		items = append(items, item)
+	}
+
+	hasMore := len(items) > limit
+	if hasMore {
+		items = items[:limit]
+	}
+
+	nextCursor := ""
+	if hasMore && len(items) > 0 {
+		nextCursor = items[len(items)-1].(struct {
+			ID          string `json:"id"`
+			Title       string `json:"title"`
+			Description string `json:"description"`
+			PriceCents  int    `json:"price_cents"`
+			Currency    string `json:"currency"`
+			Visibility  string `json:"visibility"`
+			CreatedAt   string `json:"created_at"`
+		}).CreatedAt
+	}
+
+	respondJSON(w, CursorPage{
+		Data:       items,
+		NextCursor: nextCursor,
+		HasMore:    hasMore,
+	})
+}
+
+func (s *Server) handleCreatorOrders(w http.ResponseWriter, r *http.Request) {
+	user := httpmw.GetUser(r.Context())
+	if user == nil {
+		respondError(w, http.StatusUnauthorized, "Not authenticated")
+		return
+	}
+
+	cursor := r.URL.Query().Get("cursor")
+	limit := 20
+
+	rows, err := s.db.Query(r.Context(),
+		`SELECT id, buyer_id, item_id, status, amount_cents, currency, created_at 
+		 FROM creator_orders 
+		 WHERE creator_id = $1
+		 AND ($2 = '' OR created_at < $2)
+		 ORDER BY created_at DESC LIMIT $3`,
+		user.UserID, cursor, limit+1,
+	)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "Database error")
+		return
+	}
+	defer rows.Close()
+
+	var orders []any
+	for rows.Next() {
+		var order struct {
+			ID          string `json:"id"`
+			BuyerID     string `json:"buyer_id"`
+			ItemID      string `json:"item_id"`
+			Status      string `json:"status"`
+			AmountCents int    `json:"amount_cents"`
+			Currency    string `json:"currency"`
+			CreatedAt   string `json:"created_at"`
+		}
+		err := rows.Scan(&order.ID, &order.BuyerID, &order.ItemID, &order.Status, &order.AmountCents, &order.Currency, &order.CreatedAt)
+		if err != nil {
+			continue
+		}
+		orders = append(orders, order)
+	}
+
+	hasMore := len(orders) > limit
+	if hasMore {
+		orders = orders[:limit]
+	}
+
+	nextCursor := ""
+	if hasMore && len(orders) > 0 {
+		nextCursor = orders[len(orders)-1].(struct {
+			ID          string `json:"id"`
+			BuyerID     string `json:"buyer_id"`
+			ItemID      string `json:"item_id"`
+			Status      string `json:"status"`
+			AmountCents int    `json:"amount_cents"`
+			Currency    string `json:"currency"`
+			CreatedAt   string `json:"created_at"`
+		}).CreatedAt
+	}
+
+	respondJSON(w, CursorPage{
+		Data:       orders,
+		NextCursor: nextCursor,
+		HasMore:    hasMore,
+	})
+}

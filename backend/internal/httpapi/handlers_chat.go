@@ -199,7 +199,7 @@ func (s *Server) handleListMessages(w http.ResponseWriter, r *http.Request) {
 		 FROM chat_messages cm
 		 JOIN users u ON cm.sender_id = u.id
 		 WHERE cm.room_id = $1 AND cm.deleted_at IS NULL
-		 AND ($2 = '' OR cm.id > $2)
+		 AND ($2 = '' OR cm.created_at < $2)
 		 ORDER BY cm.created_at DESC LIMIT $3`,
 		roomID, cursor, limit+1,
 	)
@@ -229,7 +229,7 @@ func (s *Server) handleListMessages(w http.ResponseWriter, r *http.Request) {
 
 	nextCursor := ""
 	if hasMore && len(messages) > 0 {
-		nextCursor = messages[len(messages)-1].(ChatMessage).ID
+		nextCursor = messages[len(messages)-1].(ChatMessage).CreatedAt
 	}
 
 	respondJSON(w, CursorPage{

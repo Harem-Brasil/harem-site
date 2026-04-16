@@ -40,7 +40,7 @@ func (s *Server) handleListPosts(w http.ResponseWriter, r *http.Request) {
 		 FROM posts p
 		 JOIN users u ON p.author_id = u.id
 		 WHERE p.deleted_at IS NULL AND p.visibility = 'public'
-		 AND ($1 = '' OR p.id > $1)
+		 AND ($1 = '' OR p.created_at < $1)
 		 ORDER BY p.created_at DESC LIMIT $2`,
 		cursor, limit+1,
 	)
@@ -70,7 +70,7 @@ func (s *Server) handleListPosts(w http.ResponseWriter, r *http.Request) {
 
 	nextCursor := ""
 	if hasMore && len(posts) > 0 {
-		nextCursor = posts[len(posts)-1].(PostResponse).ID
+		nextCursor = posts[len(posts)-1].(PostResponse).CreatedAt
 	}
 
 	respondJSON(w, CursorPage{
@@ -304,7 +304,7 @@ func (s *Server) handleListComments(w http.ResponseWriter, r *http.Request) {
 		 FROM post_comments c
 		 JOIN users u ON c.author_id = u.id
 		 WHERE c.post_id = $1 AND c.deleted_at IS NULL
-		 AND ($2 = '' OR c.id > $2)
+		 AND ($2 = '' OR c.created_at < $2)
 		 ORDER BY c.created_at DESC LIMIT $3`,
 		id, cursor, limit+1,
 	)
@@ -334,7 +334,7 @@ func (s *Server) handleListComments(w http.ResponseWriter, r *http.Request) {
 
 	nextCursor := ""
 	if hasMore && len(comments) > 0 {
-		nextCursor = comments[len(comments)-1].(CommentResponse).ID
+		nextCursor = comments[len(comments)-1].(CommentResponse).CreatedAt
 	}
 
 	respondJSON(w, CursorPage{
@@ -388,5 +388,63 @@ func (s *Server) handleCreateComment(w http.ResponseWriter, r *http.Request) {
 		PostID:   postID,
 		AuthorID: user.UserID,
 		Content:  req.Content,
+	})
+}
+
+func (s *Server) handleFeedHome(w http.ResponseWriter, r *http.Request) {
+	user := httpmw.GetUser(r.Context())
+	if user == nil {
+		respondError(w, http.StatusUnauthorized, "Not authenticated")
+		return
+	}
+
+	cursor := r.URL.Query().Get("cursor")
+	limit := 20
+
+	rows, err := s.db.Query(r.Context(),
+		`SELECT p.id, p.author_id, p.content, p.media_urls, p.visibility, p.like_count, p.created_at, p.updated_at,
+		        u.id, u.username, u.role, u.avatar_url
+		 FROM posts p
+		 JOIN users u ON p.author_id = u.id
+		 WHERE p.deleted_at IS NULL 
+		 AND (p.visibility = 'public' OR p.author_id = $1 OR 
+		      EXISTS(SELECT 1 FROM subscriptions s WHERE s.user_id = $1 AND s.status = 'active' AND s.creator_id = p.author_id))
+		 AND ($2 = '' OR p.created_at < $2)
+		 ORDER BY p.created_at DESC LIMIT $3`,
+		user.UserID, cursor, limit+1,
+	)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "Database error")
+		return
+	}
+	defer rows.Close()
+
+	var posts []any
+	for rows.Next() {
+		var p PostResponse
+		var author UserPublic
+		err := rows.Scan(&p.ID, &p.AuthorID, &p.Content, &p.MediaURLs, &p.Visibility, &p.LikeCount,
+			&p.CreatedAt, &p.UpdatedAt, &author.ID, &author.Username, &author.Role, &author.AvatarURL)
+		if err != nil {
+			continue
+		}
+		p.Author = author
+		posts = append(posts, p)
+	}
+
+	hasMore := len(posts) > limit
+	if hasMore {
+		posts = posts[:limit]
+	}
+
+	nextCursor := ""
+	if hasMore && len(posts) > 0 {
+		nextCursor = posts[len(posts)-1].(PostResponse).CreatedAt
+	}
+
+	respondJSON(w, CursorPage{
+		Data:       posts,
+		NextCursor: nextCursor,
+		HasMore:    hasMore,
 	})
 }

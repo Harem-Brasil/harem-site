@@ -35,7 +35,7 @@ func (s *Server) handleListNotifications(w http.ResponseWriter, r *http.Request)
 
 	query := `SELECT id, user_id, type, title, body, data, read_at, created_at FROM notifications 
 	          WHERE user_id = $1 AND ($3 = false OR read_at IS NULL)
-	          AND ($2 = '' OR id > $2)
+	          AND ($2 = '' OR created_at < $2)
 	          ORDER BY created_at DESC LIMIT $4`
 
 	rows, err := s.db.Query(r.Context(), query, user.UserID, cursor, unreadOnly, limit+1)
@@ -67,7 +67,7 @@ func (s *Server) handleListNotifications(w http.ResponseWriter, r *http.Request)
 
 	nextCursor := ""
 	if hasMore && len(notifications) > 0 {
-		nextCursor = notifications[len(notifications)-1].(Notification).ID
+		nextCursor = notifications[len(notifications)-1].(Notification).CreatedAt
 	}
 
 	respondJSON(w, CursorPage{

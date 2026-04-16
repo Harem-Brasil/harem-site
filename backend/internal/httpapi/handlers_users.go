@@ -144,9 +144,111 @@ func (s *Server) handleListUsers(w http.ResponseWriter, r *http.Request) {
 
 	rows, err := s.db.Query(r.Context(),
 		`SELECT id, username, role, avatar_url, created_at FROM users 
-		 WHERE deleted_at IS NULL AND ($1 = '' OR id > $1) 
-		 ORDER BY id LIMIT $2`,
+		 WHERE deleted_at IS NULL AND ($1 = '' OR created_at < $1)
+		 ORDER BY created_at DESC LIMIT $2`,
 		cursor, limit+1,
+	)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "Database error")
+		return
+	}
+	defer rows.Close()
+
+	var users []any
+	for rows.Next() {
+		var u UserPublic
+		err := rows.Scan(&u.ID, &u.Username, &u.Role, &u.AvatarURL, &u.CreatedAt)
+		if err != nil {
+			continue
+		}
+		users = append(users, u)
+	}
+
+	hasMore := len(users) > limit
+	if hasMore {
+		users = users[:limit]
+	}
+
+	nextCursor := ""
+	if hasMore && len(users) > 0 {
+		nextCursor = users[len(users)-1].(UserPublic).CreatedAt
+	}
+
+	respondJSON(w, CursorPage{
+		Data:       users,
+		NextCursor: nextCursor,
+		HasMore:    hasMore,
+	})
+}
+
+func (s *Server) handleGetUserPosts(w http.ResponseWriter, r *http.Request) {
+	userID := chi.URLParam(r, "id")
+	cursor := r.URL.Query().Get("cursor")
+	limit := 20
+
+	rows, err := s.db.Query(r.Context(),
+		`SELECT p.id, p.author_id, p.content, p.media_urls, p.visibility, p.like_count, p.created_at, p.updated_at,
+		        u.id, u.username, u.role, u.avatar_url
+		 FROM posts p
+		 JOIN users u ON p.author_id = u.id
+		 WHERE p.author_id = $1 AND p.deleted_at IS NULL AND p.visibility = 'public'
+		 AND ($2 = '' OR p.created_at < $2)
+		 ORDER BY p.created_at DESC LIMIT $3`,
+		userID, cursor, limit+1,
+	)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "Database error")
+		return
+	}
+	defer rows.Close()
+
+	var posts []any
+	for rows.Next() {
+		var p PostResponse
+		var author UserPublic
+		err := rows.Scan(&p.ID, &p.AuthorID, &p.Content, &p.MediaURLs, &p.Visibility, &p.LikeCount,
+			&p.CreatedAt, &p.UpdatedAt, &author.ID, &author.Username, &author.Role, &author.AvatarURL)
+		if err != nil {
+			continue
+		}
+		p.Author = author
+		posts = append(posts, p)
+	}
+
+	hasMore := len(posts) > limit
+	if hasMore {
+		posts = posts[:limit]
+	}
+
+	nextCursor := ""
+	if hasMore && len(posts) > 0 {
+		nextCursor = posts[len(posts)-1].(PostResponse).CreatedAt
+	}
+
+	respondJSON(w, CursorPage{
+		Data:       posts,
+		NextCursor: nextCursor,
+		HasMore:    hasMore,
+	})
+}
+
+func (s *Server) handleSearchUsers(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query().Get("q")
+	cursor := r.URL.Query().Get("cursor")
+	limit := 20
+
+	if query == "" {
+		respondValidationError(w, map[string]string{"q": "Search query is required"})
+		return
+	}
+
+	rows, err := s.db.Query(r.Context(),
+		`SELECT id, username, role, avatar_url, created_at FROM users 
+		 WHERE deleted_at IS NULL
+		 AND (to_tsvector('portuguese', coalesce(username,'') || ' ' || coalesce(bio,'')) @@ plainto_tsquery('portuguese', $1))
+		 AND ($2 = '' OR created_at < $2)
+		 ORDER BY created_at DESC LIMIT $3`,
+		query, cursor, limit+1,
 	)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, "Database error")

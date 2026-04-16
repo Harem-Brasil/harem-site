@@ -195,11 +195,95 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
-	respondError(w, http.StatusNotImplemented, "Refresh endpoint not yet implemented")
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "Failed to read request body")
+		return
+	}
+
+	var req struct {
+		RefreshToken string `json:"refresh_token"`
+	}
+	if err := json.Unmarshal(body, &req); err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid JSON")
+		return
+	}
+
+	if req.RefreshToken == "" {
+		respondValidationError(w, map[string]string{"refresh_token": "Required"})
+		return
+	}
+
+	var session struct {
+		UserID    string
+		ExpiresAt time.Time
+	}
+	err = s.db.QueryRow(r.Context(),
+		`SELECT user_id, expires_at FROM sessions WHERE refresh_token = $1 AND revoked_at IS NULL`,
+		req.RefreshToken,
+	).Scan(&session.UserID, &session.ExpiresAt)
+
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			respondError(w, http.StatusUnauthorized, "Invalid refresh token")
+			return
+		}
+		respondError(w, http.StatusInternalServerError, "Database error")
+		return
+	}
+
+	if time.Now().UTC().After(session.ExpiresAt) {
+		respondError(w, http.StatusUnauthorized, "Refresh token expired")
+		return
+	}
+
+	var user struct {
+		ID       string
+		Email    string
+		Username string
+		Role     string
+	}
+	err = s.db.QueryRow(r.Context(),
+		`SELECT id, email, username, role FROM users WHERE id = $1 AND deleted_at IS NULL`,
+		session.UserID,
+	).Scan(&user.ID, &user.Email, &user.Username, &user.Role)
+
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "User not found")
+		return
+	}
+
+	accessToken, refreshToken, expiresAt, err := s.generateTokens(user.ID, user.Email, user.Username, []string{user.Role})
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "Failed to generate tokens")
+		return
+	}
+
+	// Revoke the old refresh token
+	_, _ = s.db.Exec(r.Context(),
+		`UPDATE sessions SET revoked_at = NOW() WHERE refresh_token = $1`,
+		req.RefreshToken,
+	)
+
+	refreshExpiry := time.Now().UTC().Add(7 * 24 * time.Hour)
+	_, err = s.db.Exec(r.Context(),
+		`INSERT INTO sessions (id, user_id, refresh_token, expires_at) VALUES ($1, $2, $3, $4)`,
+		uuid.New().String(), user.ID, refreshToken, refreshExpiry,
+	)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "Failed to create session")
+		return
+	}
+
+	respondJSON(w, map[string]any{
+		"access_token":  accessToken,
+		"refresh_token": refreshToken,
+		"token_type":    "Bearer",
+		"expires_at":    expiresAt,
+	})
 }
 
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
-	// Get refresh token from request body
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		respondError(w, http.StatusBadRequest, "Failed to read request body")
@@ -218,4 +302,28 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondNoContent(w)
+}
+
+func (s *Server) handleLogoutAll(w http.ResponseWriter, r *http.Request) {
+	respondError(w, http.StatusNotImplemented, "Logout all sessions not yet implemented")
+}
+
+func (s *Server) handleOAuthAuthorize(w http.ResponseWriter, r *http.Request) {
+	respondError(w, http.StatusNotImplemented, "OAuth authorization not yet implemented")
+}
+
+func (s *Server) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
+	respondError(w, http.StatusNotImplemented, "OAuth callback not yet implemented")
+}
+
+func (s *Server) handleEmailVerify(w http.ResponseWriter, r *http.Request) {
+	respondError(w, http.StatusNotImplemented, "Email verification not yet implemented")
+}
+
+func (s *Server) handlePasswordForgot(w http.ResponseWriter, r *http.Request) {
+	respondError(w, http.StatusNotImplemented, "Password forgot not yet implemented")
+}
+
+func (s *Server) handlePasswordReset(w http.ResponseWriter, r *http.Request) {
+	respondError(w, http.StatusNotImplemented, "Password reset not yet implemented")
 }
