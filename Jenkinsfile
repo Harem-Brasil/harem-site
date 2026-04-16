@@ -1,5 +1,4 @@
 // Jenkins Pipeline para deploy do backend Harem Brasil
-// Build multi-arch (amd64/arm64) e deploy amd64 para servidor
 
 pipeline {
   agent any
@@ -13,9 +12,10 @@ pipeline {
     GO111MODULE = 'on'
 
     // Deployment targets
-    TARGET_HOST     = 'web1'  // Ajuste para seu servidor de deploy
+    TARGET_HOST     = 'web1'
     TARGET_DIR      = '/var/www/vhosts/api.harembrasil.com.br'
     SERVICE_NAME    = 'harem-api'
+    SERVICE_USER    = 'grimlock'
 
     // Secrets - configure no Jenkins Credentials
     DATABASE_URL    = credentials('harem-brasil-database-url')
@@ -32,46 +32,25 @@ pipeline {
       }
     }
 
-    stage('Build Matrix') {
-      matrix {
-        axes {
-          axis {
-            name 'GOARCH'
-            values 'amd64', 'arm64'
-          }
+    stage('Build') {
+      steps {
+        dir('backend') {
+          sh label: 'Go build', script: '''
+            set -euo pipefail
+            go version || true
+            export GOOS=linux
+            export GOARCH=amd64
+            export CGO_ENABLED=0
+            echo "Building for $GOOS/$GOARCH"
+            go build -ldflags="-s -w" -o harem-api-linux-amd64 ./cmd/api
+          '''
         }
-        stages {
-          stage('Build') {
-            steps {
-              dir('backend') {
-                sh label: 'Go build', script: '''
-                  set -euo pipefail
-                  go version || true
-                  export GOOS=linux
-                  export CGO_ENABLED=0
-                  echo "Building for $GOOS/$GOARCH"
-                  out="harem-api-${GOOS}-${GOARCH}"
-                  go build -ldflags="-s -w" -o "$out" ./cmd/api
-                '''
-              }
-            }
-          }
-          stage('Archive') {
-            steps {
-              sh '''
-                set -euo pipefail
-                mkdir -p artifacts
-                cp backend/harem-api-linux-${GOARCH} artifacts/
-              '''
-              stash name: "bin-${GOARCH}", includes: "artifacts/harem-api-linux-${GOARCH}"
-            }
-          }
-        }
-        post {
-          success {
-            echo "Built ${GOARCH} successfully"
-          }
-        }
+        sh '''
+          set -euo pipefail
+          mkdir -p artifacts
+          cp backend/harem-api-linux-amd64 artifacts/
+        '''
+        stash name: 'bin-amd64', includes: 'artifacts/harem-api-linux-amd64'
       }
     }
 
@@ -100,14 +79,9 @@ pipeline {
 set -euo pipefail
 BIN_LOCAL="artifacts/harem-api-linux-amd64"
 
-# Criar arquivo .env localmente (segurança: não expor segredos na linha de comando)
-cat > /tmp/harem-api.env << EOF
-PORT=40080
-DATABASE_URL=${DATABASE_URL}
-REDIS_URL=${REDIS_URL}
-JWT_SECRET=${JWT_SECRET}
-STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
-EOF
+# Criar arquivo .env localmente usando printf para evitar re-interpretação de caracteres especiais
+printf 'PORT=40080\nDATABASE_URL=%s\nREDIS_URL=%s\nJWT_SECRET=%s\nSTRIPE_SECRET_KEY=%s\n' \
+  "$DATABASE_URL" "$REDIS_URL" "$JWT_SECRET" "$STRIPE_SECRET_KEY" > /tmp/harem-api.env
 
 # Upload arquivos para /tmp no target
 scp "$BIN_LOCAL" ${TARGET_HOST}:/tmp/harem-api
@@ -137,21 +111,21 @@ ssh ${TARGET_HOST} "
   sudo mv /tmp/migrations ${TARGET_DIR}/migrations
   sudo chmod -R 0755 ${TARGET_DIR}/migrations
 
-  sudo chown -R grimlock:grimlock ${TARGET_DIR}
+  sudo chown -R ${SERVICE_USER}:${SERVICE_USER} ${TARGET_DIR}
 "
 
 # Criar/Atualizar serviço systemd
 ssh ${TARGET_HOST} "
   set -euo pipefail
 
-  sudo tee /etc/systemd/system/${SERVICE_NAME}.service > /dev/null << 'SERVICEFILE'
+  sudo tee /etc/systemd/system/${SERVICE_NAME}.service > /dev/null << SERVICEFILE
 [Unit]
 Description=Harem Brasil API
 After=network.target
 
 [Service]
 Type=simple
-User=grimlock
+User=${SERVICE_USER}
 WorkingDirectory=${TARGET_DIR}
 EnvironmentFile=${TARGET_DIR}/.env
 ExecStart=${TARGET_DIR}/harem-api serve
@@ -167,7 +141,15 @@ SERVICEFILE
   sudo systemctl daemon-reload
   sudo systemctl enable ${SERVICE_NAME}
   sudo systemctl restart ${SERVICE_NAME}
-  sleep 3
+
+  # Aguardar o serviço estabilizar com retentativas
+  for i in {1..10}; do
+    if sudo systemctl is-active ${SERVICE_NAME} > /dev/null; then
+      break
+    fi
+    sleep 1
+  done
+
   sudo journalctl -u ${SERVICE_NAME} --no-pager -n 50
   sudo systemctl is-active ${SERVICE_NAME}
 "
