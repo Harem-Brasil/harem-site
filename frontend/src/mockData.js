@@ -3,21 +3,21 @@ export const initialPosts = [
     id: "1",
     author: "Equipe HB",
     time: "agora",
-    text: "Bem-vindo ao Harém brasil - comunidade e conteudo exclusivo.",
+    text: "Bem-vindo ao Harém Brasil - comunidade e conteúdo exclusivo.",
     tags: ["feed"],
   },
   {
     id: "2",
     author: "Criadora Verificada",
-    time: "ha 2h",
-    text: "Novo pacote premium disponivel com acesso antecipado no forum privado.",
+    time: "há 2h",
+    text: "Novo pacote premium disponível com acesso antecipado no fórum privado.",
     tags: ["feed", "forum"],
   },
   {
     id: "3",
     author: "Moderacao",
-    time: "ha 4h",
-    text: "Novas regras de privacidade publicadas no forum de seguranca.",
+    time: "há 4h",
+    text: "Novas regras de privacidade publicadas no fórum de segurança.",
     tags: ["forum"],
   },
 ];
@@ -25,17 +25,17 @@ export const initialPosts = [
 export const forumRooms = [
   "Relacionamentos discretos",
   "Dicas para criadoras",
-  "Seguranca e privacidade",
+  "Segurança e privacidade",
   "Perguntas premium",
 ];
 
 export const trendingTopics = [
   {
-    title: "Como melhorar engajamento sem exposicao excessiva?",
+    title: "Como melhorar engajamento sem exposição excessiva?",
     replies: 42,
   },
   {
-    title: "Boas praticas de conteudo exclusivo",
+    title: "Boas práticas de conteúdo exclusivo",
     replies: 31,
   },
   {

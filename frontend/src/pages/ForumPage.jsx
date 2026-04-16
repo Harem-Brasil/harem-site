@@ -9,7 +9,7 @@ export default function ForumPage() {
   return (
     <>
       <Composer
-        title="Criar topico no forum"
+        title="Criar tópico no fórum"
         pageType="forum"
         onPublish={publishPost}
       />

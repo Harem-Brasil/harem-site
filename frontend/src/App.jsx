@@ -15,7 +15,7 @@ export default function App() {
     setPosts((prev) => [
       {
         id: crypto.randomUUID(),
-        author: "Voce",
+        author: "Você",
         time: "agora",
         text: value,
         tags: pageType === "forum" ? ["forum"] : ["feed"],

@@ -4,10 +4,10 @@ export default function Topbar() {
       <input
         type="search"
         className="search"
-        placeholder="Procurar criadoras, topicos e posts"
+        placeholder="Procurar criadoras, tópicos e posts"
       />
       <div className="top-actions">
-        <button className="ghost-btn">Notificacoes</button>
+        <button className="ghost-btn">Notificações</button>
         <button className="ghost-btn">Config</button>
       </div>
     </header>

@@ -4,7 +4,7 @@ export default function RightPanel() {
   return (
     <aside className="right-panel">
       <section className="card">
-        <h3>Salas do forum</h3>
+        <h3>Salas do fórum</h3>
         <ul className="forum-list">
           {forumRooms.map((room) => (
             <li key={room}>
@@ -16,7 +16,7 @@ export default function RightPanel() {
       </section>
 
       <section className="card">
-        <h3>Topicos em alta</h3>
+        <h3>Tópicos em alta</h3>
         {trendingTopics.map((topic) => (
           <div className="topic" key={topic.title}>
             <p className="topic-title">{topic.title}</p>

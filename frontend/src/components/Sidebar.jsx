@@ -1,8 +1,8 @@
 import { NavLink } from "react-router-dom";
 
 const items = [
-  { label: "Inicio", to: "/home" },
-  { label: "Forum", to: "/forum" },
+  { label: "Início", to: "/home" },
+  { label: "Fórum", to: "/forum" },
   { label: "Mensagens", to: "/mensagens" },
   { label: "Assinaturas", to: "/assinaturas" },
   { label: "Perfil", to: "/perfil" },
@@ -30,7 +30,7 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      <button className="primary-btn">Nova publicacao</button>
+      <button className="primary-btn">Nova publicação</button>
     </aside>
   );
 }
