@@ -101,7 +101,7 @@ set -euo pipefail
 BIN_LOCAL="artifacts/harem-api-linux-amd64"
 
 # Criar arquivo .env localmente (segurança: não expor segredos na linha de comando)
-cat > /tmp/harem-api.env << 'EOF'
+cat > /tmp/harem-api.env << EOF
 PORT=8080
 DATABASE_URL=${DATABASE_URL}
 REDIS_URL=${REDIS_URL}
@@ -167,7 +167,9 @@ SERVICEFILE
   sudo systemctl daemon-reload
   sudo systemctl enable ${SERVICE_NAME}
   sudo systemctl restart ${SERVICE_NAME}
-  sudo systemctl status ${SERVICE_NAME} --no-pager
+  sleep 3
+  sudo journalctl -u ${SERVICE_NAME} --no-pager -n 50
+  sudo systemctl is-active ${SERVICE_NAME}
 "
           '''
       }
