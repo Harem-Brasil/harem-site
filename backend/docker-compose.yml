@@ -1,0 +1,93 @@
+# Harém Brasil — dev environment
+#
+# Uso:
+#   docker compose up -d          # sobe postgres + redis + api
+#   docker compose up -d postgres redis   # só infra
+#   docker compose logs -f api    # acompanhar logs da API
+#   docker compose down           # parar tudo
+#
+# Variáveis (opcional, ficheiro .env na mesma pasta):
+#   PORT, DATABASE_URL, REDIS_URL, JWT_SECRET
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: harem-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: harem
+      POSTGRES_PASSWORD: harem
+      POSTGRES_DB: harem
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U harem -d harem"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: harem-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: harem-migrate
+    environment:
+      DATABASE_URL: postgres://harem:harem@postgres:5432/harem?sslmode=disable
+    volumes:
+      - ./migrations:/app/migrations
+    command: ["migrate"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: harem-api
+    restart: unless-stopped
+    ports:
+      - "${PORT:-40080}:40080"
+    environment:
+      PORT: "40080"
+      DATABASE_URL: postgres://harem:harem@postgres:5432/harem?sslmode=disable
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:-development-secret-change-in-production}
+    volumes:
+      - .:/app
+      - go_mod_cache:/go
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:40080/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  postgres_data:
+  redis_data:
+  go_mod_cache:

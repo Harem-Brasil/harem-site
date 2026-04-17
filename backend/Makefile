@@ -1,8 +1,8 @@
-.PHONY: all build test bdd test-coverage clean run migrate serve lint
+.PHONY: all build test bdd test-coverage clean run migrate serve lint compose-up compose-up-infra compose-down compose-logs compose-rebuild docker-up docker-down
 
 # Default environment
 export PORT ?= 40080
-export DATABASE_URL ?= postgres://postgres:postgres@localhost:54181/harem?sslmode=disable
+export DATABASE_URL ?= postgres://harem:harem@localhost:5432/harem?sslmode=disable
 export REDIS_URL ?= redis://localhost:6379/0
 export JWT_SECRET ?= development-secret-change-in-production
 
@@ -47,12 +47,26 @@ dev:
 dev-migrate:
 	go run $(MAIN) migrate
 
-# Docker shortcuts
-docker-up:
-	docker run -d --name postgres-harem -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=harem -p 54181:5432 postgres:15-alpine || true
+# Docker Compose shortcuts
+compose-up:
+	docker compose up -d
 
-docker-down:
-	docker stop postgres-harem || true
-	docker rm postgres-harem || true
+compose-up-infra:
+	docker compose up -d postgres redis
+
+compose-down:
+	docker compose down
+
+compose-logs:
+	docker compose logs -f api
+
+compose-rebuild:
+	docker compose build --no-cache api
+	docker compose up -d api
+
+# Legacy: single-container shortcuts (use compose-up instead)
+docker-up: compose-up-infra
+
+docker-down: compose-down
 
 .DEFAULT_GOAL := build

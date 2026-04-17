@@ -5,10 +5,10 @@
 PORT=40080
 
 # Database connection string
-# For local Docker PostgreSQL:
-DATABASE_URL=postgres://postgres:postgres@localhost:54181/harem?sslmode=disable
+# For Docker Compose (make compose-up):
+DATABASE_URL=postgres://harem:harem@localhost:5432/harem?sslmode=disable
 # For production:
-# DATABASE_URL=postgres://harem:password@localhost:5432/harem?sslmode=require
+# DATABASE_URL=postgres://harem:password@db.example.com:5432/harem?sslmode=require
 
 # Redis connection string
 REDIS_URL=redis://localhost:6379/0

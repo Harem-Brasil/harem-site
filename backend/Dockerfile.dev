@@ -1,0 +1,15 @@
+# Dev image with Air for hot-reload
+FROM golang:1.23-alpine
+
+RUN go install github.com/air-verse/air@v1.52.3
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+EXPOSE 40080
+
+CMD ["air", "-c", ".air.toml"]

@@ -1,0 +1,45 @@
+# Build artifacts
+harem-api
+tmp/
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+coverage.out
+coverage.html
+
+# Environment & secrets
+.env
+.env.*
+
+# IDE & editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+.githooks/
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Docs & meta
+*.md
+LICENSE
+README.md
+API_IMPLEMENTACAO.md
+BACKEND.md
+
+# BDD test features (not needed in runtime image)
+features/
+
+# Scripts
+scripts/

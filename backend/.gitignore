@@ -1,6 +1,9 @@
 # Built binary
 ./harem-api
 
+# Air live-reload tmp
+tmp/
+
 
 # Environment variables
 .env
