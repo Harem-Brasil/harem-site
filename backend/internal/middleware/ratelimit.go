@@ -21,18 +21,41 @@ func extractIP(remoteAddr string) string {
 	return remoteAddr
 }
 
-// trustedProxies contains IPs of known reverse proxies that can set X-Forwarded-For
-var trustedProxies = []string{"127.0.0.1", "::1", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"}
+var (
+	trustedProxyNets []*net.IPNet
+	trustedProxyIPs  []net.IP
+)
+
+func init() {
+	cidrs := []string{"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"}
+	hosts := []string{"127.0.0.1", "::1"}
+
+	for _, cidr := range cidrs {
+		_, ipNet, err := net.ParseCIDR(cidr)
+		if err == nil {
+			trustedProxyNets = append(trustedProxyNets, ipNet)
+		}
+	}
+	for _, host := range hosts {
+		if ip := net.ParseIP(host); ip != nil {
+			trustedProxyIPs = append(trustedProxyIPs, ip)
+		}
+	}
+}
 
 // isTrustedProxy checks if the remote IP is in the trusted proxies list
 func isTrustedProxy(remoteIP string) bool {
-	for _, trusted := range trustedProxies {
-		if strings.Contains(trusted, "/") {
-			// CIDR range check (simplified)
-			if strings.HasPrefix(remoteIP, trusted[:strings.Index(trusted, ".")+1]) {
-				return true
-			}
-		} else if remoteIP == trusted {
+	ip := net.ParseIP(remoteIP)
+	if ip == nil {
+		return false
+	}
+	for _, ipNet := range trustedProxyNets {
+		if ipNet.Contains(ip) {
+			return true
+		}
+	}
+	for _, trusted := range trustedProxyIPs {
+		if trusted.Equal(ip) {
 			return true
 		}
 	}

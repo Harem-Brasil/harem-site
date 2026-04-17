@@ -40,9 +40,10 @@ func validateWebhookSignature(provider string, body []byte, r *http.Request) boo
 	}
 
 	if secretKey == "" {
-		// In development/test mode without secrets configured, skip validation
-		// TODO: Remove this fallback before production
-		return true
+		if os.Getenv("ENV") == "development" || os.Getenv("ENV") == "test" {
+			return true
+		}
+		return false
 	}
 
 	mac := hmac.New(sha256.New, []byte(secretKey))

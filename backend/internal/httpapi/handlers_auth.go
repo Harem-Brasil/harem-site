@@ -260,10 +260,16 @@ func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Revoke the old refresh token
-	_, _ = s.db.Exec(r.Context(),
+	if _, err := s.db.Exec(r.Context(),
 		`UPDATE sessions SET revoked_at = NOW() WHERE refresh_token = $1`,
 		req.RefreshToken,
-	)
+	); err != nil {
+		tokenHint := req.RefreshToken
+		if len(tokenHint) > 8 {
+			tokenHint = tokenHint[:8] + "..."
+		}
+		s.config.Logger.Error("failed to revoke old refresh token", "error", err, "refresh_token", tokenHint)
+	}
 
 	refreshExpiry := time.Now().UTC().Add(7 * 24 * time.Hour)
 	_, err = s.db.Exec(r.Context(),

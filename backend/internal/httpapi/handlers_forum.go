@@ -303,19 +303,25 @@ func (s *Server) handleCreateForumPost(w http.ResponseWriter, r *http.Request) {
 func slugify(title string) string {
 	// Unicode normalization: decompose accented characters and remove combining marks
 	t := transform.Chain(norm.NFD, runes.Remove(runes.In(unicode.Mn)), norm.NFC)
-	normalized, _, _ := transform.String(t, title)
+	normalized, _, err := transform.String(t, title)
+	if err != nil {
+		normalized = title
+	}
 
-	result := ""
+	var b strings.Builder
+	b.Grow(len(normalized))
 	for _, r := range normalized {
 		switch {
 		case r >= 'a' && r <= 'z' || r >= '0' && r <= '9':
-			result += string(r)
+			b.WriteRune(r)
 		case r >= 'A' && r <= 'Z':
-			result += string(r + ('a' - 'A'))
+			b.WriteRune(r + ('a' - 'A'))
 		case r == ' ', r == '-', r == '_':
-			result += "-"
+			b.WriteByte('-')
 		}
 	}
+
+	result := b.String()
 
 	// Clean up multiple consecutive dashes
 	for strings.Contains(result, "--") {
