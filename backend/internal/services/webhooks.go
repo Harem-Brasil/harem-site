@@ -21,9 +21,6 @@ func (s *Services) validateWebhookSignature(provider string, body []byte, sigHea
 	if sig == "" {
 		sig = stripeSig
 	}
-	if sig == "" {
-		return false
-	}
 
 	var secretKey string
 	switch provider {
@@ -37,10 +34,12 @@ func (s *Services) validateWebhookSignature(provider string, body []byte, sigHea
 		return false
 	}
 
+	// Sem segredo: só development/test aceitam (ex.: testes BDD sem header de assinatura).
 	if secretKey == "" {
-		if s.AppEnv == "development" || s.AppEnv == "test" {
-			return true
-		}
+		return s.AppEnv == "development" || s.AppEnv == "test"
+	}
+
+	if sig == "" {
 		return false
 	}
 

@@ -31,8 +31,12 @@ func RegisterRoutes(engine *gin.Engine, svc *services.Services, jwtSecret []byte
 		if !ok {
 			code = http.StatusServiceUnavailable
 		}
+		status := "ok"
+		if !ok {
+			status = "error"
+		}
 		utils.RespondJSON(c, code, gin.H{
-			"status":  map[bool]string{true: "healthy", false: "unhealthy"}[ok],
+			"status":  status,
 			"checks":  checks,
 			"version": ver,
 		})
