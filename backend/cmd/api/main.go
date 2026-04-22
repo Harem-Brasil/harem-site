@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/harem-brasil/backend/internal/httpapi"
+	"github.com/harem-brasil/backend/internal/application"
 	"github.com/harem-brasil/backend/internal/migrate"
 	"github.com/joho/godotenv"
 )
@@ -66,7 +66,7 @@ func runServe(logger *slog.Logger, dbURL string) {
 		slog.Warn("using default JWT secret - set JWT_SECRET env var in production")
 	}
 
-	server, err := httpapi.New(httpapi.Config{
+	server, err := application.NewHTTPServer(application.Config{
 		Port:      *port,
 		DBURL:     dbURL,
 		RedisURL:  *redisURL,

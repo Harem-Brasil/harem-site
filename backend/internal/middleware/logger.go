@@ -2,33 +2,32 @@ package middleware
 
 import (
 	"log/slog"
-	"net/http"
 	"time"
 
-	"github.com/go-chi/chi/v5/middleware"
+	"github.com/gin-gonic/gin"
 )
 
-func RequestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		fn := func(w http.ResponseWriter, r *http.Request) {
-			start := time.Now()
-			ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
-
-			defer func() {
-				duration := time.Since(start)
-				logger.Info("http request",
-					slog.String("method", r.Method),
-					slog.String("path", r.URL.Path),
-					slog.Int("status", ww.Status()),
-					slog.Int("bytes", ww.BytesWritten()),
-					slog.Duration("duration", duration),
-					slog.String("request_id", middleware.GetReqID(r.Context())),
-					slog.String("remote_addr", r.RemoteAddr),
-				)
-			}()
-
-			next.ServeHTTP(ww, r)
+// RequestLogger registra cada requisição HTTP (observabilidade / API10).
+func RequestLogger(logger *slog.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		start := time.Now()
+		path := c.FullPath()
+		if path == "" {
+			path = c.Request.URL.Path
 		}
-		return http.HandlerFunc(fn)
+
+		c.Next()
+
+		duration := time.Since(start)
+		status := c.Writer.Status()
+		logger.Info("http request",
+			slog.String("method", c.Request.Method),
+			slog.String("path", path),
+			slog.Int("status", status),
+			slog.Int("bytes", c.Writer.Size()),
+			slog.Duration("duration", duration),
+			slog.String("request_id", GetRequestID(c)),
+			slog.String("remote_addr", c.ClientIP()),
+		)
 	}
 }

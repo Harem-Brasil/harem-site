@@ -2,14 +2,16 @@ package middleware
 
 import (
 	"net/http"
+
+	"github.com/gin-gonic/gin"
 )
 
-func MaxBodySize(limit int64) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Content-Type", "application/json; charset=utf-8")
-			r.Body = http.MaxBytesReader(w, r.Body, limit)
-			next.ServeHTTP(w, r)
-		})
+// MaxBodySize limita o tamanho do corpo (API4 — consumo de recursos).
+func MaxBodySize(limit int64) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if c.Request.Body != nil {
+			c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, limit)
+		}
+		c.Next()
 	}
 }

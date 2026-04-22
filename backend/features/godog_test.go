@@ -5,8 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -14,11 +16,12 @@ import (
 	"github.com/cucumber/godog"
 	"github.com/golang-jwt/jwt/v5"
 
-	"github.com/harem-brasil/backend/internal/httpapi"
+	"github.com/harem-brasil/backend/internal/application"
+	"log/slog"
 )
 
 type apiContext struct {
-	server        *httpapi.Server
+	server        *application.HTTPServer
 	recorder      *httptest.ResponseRecorder
 	request       *http.Request
 	response      map[string]any
@@ -102,12 +105,21 @@ func InitializeScenario(ctx *godog.ScenarioContext) {
 }
 
 func theAPIIsRunning() error {
-	cfg := httpapi.Config{
+	cfg := application.Config{
 		Port:      "40080",
+		DBURL:     os.Getenv("DATABASE_URL"),
+		RedisURL:  os.Getenv("REDIS_URL"),
 		JWTSecret: "test-jwt-secret-that-is-long-enough-for-tests-32chars",
+		Logger:    slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+	if cfg.DBURL == "" {
+		cfg.DBURL = "postgres://harem:harem@localhost:5432/harem?sslmode=disable"
+	}
+	if cfg.RedisURL == "" {
+		cfg.RedisURL = "redis://localhost:6379/0"
 	}
 
-	srv, err := httpapi.New(cfg)
+	srv, err := application.NewHTTPServer(cfg)
 	if err != nil {
 		// Skip tests when DB/Redis is not available - return pending
 		return godog.ErrPending
@@ -146,13 +158,15 @@ const testJWTSecret = "test-jwt-secret-that-is-long-enough-for-tests-32chars"
 
 func generateTestToken(username, role string) string {
 	claims := jwt.MapClaims{
-		"sub":  username,
-		"role": role,
-		"exp":  time.Now().Add(time.Hour).Unix(),
-		"iat":  time.Now().Unix(),
-		"iss":  "harem-api",
-		"aud":  "harem-client",
-		"type": "access",
+		"sub":   username,
+		"roles": []string{role},
+		"email": username + "@test.local",
+		"username": username,
+		"exp":      time.Now().Add(time.Hour).Unix(),
+		"iat":      time.Now().Unix(),
+		"iss":      "harem-api",
+		"aud":      "harem-client",
+		"type":     "access",
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	signed, _ := token.SignedString([]byte(testJWTSecret))
