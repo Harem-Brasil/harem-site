@@ -714,7 +714,7 @@ func RegisterRoutes(engine *gin.Engine, svc *services.Services, jwtSecret []byte
 				utils.HandleServiceError(c, logger, err)
 				return
 			}
-			utils.RespondJSON(c, http.StatusOK, gin.H{"status": "received"})
+			utils.RespondJSON(c, http.StatusOK, gin.H{"status": "received", "provider": "stripe"})
 		})
 		wh.POST("/webhooks/pagseguro", func(c *gin.Context) {
 			body, err := c.GetRawData()
@@ -726,7 +726,7 @@ func RegisterRoutes(engine *gin.Engine, svc *services.Services, jwtSecret []byte
 				utils.HandleServiceError(c, logger, err)
 				return
 			}
-			utils.RespondJSON(c, http.StatusOK, gin.H{"status": "received"})
+			utils.RespondJSON(c, http.StatusOK, gin.H{"status": "received", "provider": "pagseguro"})
 		})
 		wh.POST("/webhooks/mercadopago", func(c *gin.Context) {
 			body, err := c.GetRawData()
@@ -738,7 +738,7 @@ func RegisterRoutes(engine *gin.Engine, svc *services.Services, jwtSecret []byte
 				utils.HandleServiceError(c, logger, err)
 				return
 			}
-			utils.RespondJSON(c, http.StatusOK, gin.H{"status": "received"})
+			utils.RespondJSON(c, http.StatusOK, gin.H{"status": "received", "provider": "mercadopago"})
 		})
 		wh.POST("/webhooks/:provider", func(c *gin.Context) {
 			body, err := c.GetRawData()
