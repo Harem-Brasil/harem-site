@@ -165,9 +165,9 @@ const testJWTSecret = "test-jwt-secret-that-is-long-enough-for-tests-32chars"
 
 func generateTestToken(username, role string) string {
 	claims := jwt.MapClaims{
-		"sub":   username,
-		"roles": []string{role},
-		"email": username + "@test.local",
+		"sub":      username,
+		"roles":    []string{role},
+		"email":    username + "@test.local",
 		"username": username,
 		"exp":      time.Now().Add(time.Hour).Unix(),
 		"iat":      time.Now().Unix(),
