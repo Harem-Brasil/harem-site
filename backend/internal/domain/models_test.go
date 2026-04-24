@@ -98,14 +98,22 @@ func TestValidateScreenName(t *testing.T) {
 	}{
 		{"valid", "user123", false},
 		{"minimum length", "ab", false},
+		{"max length", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", false},
+		{"over max length", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", true},
+		{"emoji", "user😎", false},
+		{"non-Latin", "用户名", false},
 		{"too short", "a", true},
+		{"empty", "", true},
 		{"control char", "user\x00name", true},
 		{"del char", "user\x7Fname", true},
 		{"zero-width space", "user\u200Bname", true},
 		{"space", "user name", true},
 		{"tab", "user\tname", true},
+		{"newline", "user\nname", true},
 		{"leading space", " username", true},
 		{"trailing space", "username ", true},
+		{"non-breaking space", "user\u00A0name", true},
+		{"only spaces", "   ", true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
