@@ -69,7 +69,11 @@ func RegisterRoutes(engine *gin.Engine, svc *services.Services, jwtSecret []byte
 				utils.RespondProblem(c, http.StatusBadRequest, http.StatusText(http.StatusBadRequest), "Invalid JSON")
 				return
 			}
-			resp, err := svc.Register(c.Request.Context(), req)
+			meta := &services.SessionMeta{
+				IP:        c.ClientIP(),
+				UserAgent: c.GetHeader("User-Agent"),
+			}
+			resp, err := svc.Register(c.Request.Context(), req, meta)
 			if err != nil {
 				utils.HandleServiceError(c, logger, err)
 				return
@@ -82,7 +86,11 @@ func RegisterRoutes(engine *gin.Engine, svc *services.Services, jwtSecret []byte
 				utils.RespondProblem(c, http.StatusBadRequest, http.StatusText(http.StatusBadRequest), "Invalid JSON")
 				return
 			}
-			resp, err := svc.Login(c.Request.Context(), req)
+			meta := &services.SessionMeta{
+				IP:        c.ClientIP(),
+				UserAgent: c.GetHeader("User-Agent"),
+			}
+			resp, err := svc.Login(c.Request.Context(), req, meta)
 			if err != nil {
 				utils.HandleServiceError(c, logger, err)
 				return
@@ -95,7 +103,11 @@ func RegisterRoutes(engine *gin.Engine, svc *services.Services, jwtSecret []byte
 				utils.RespondProblem(c, http.StatusBadRequest, http.StatusText(http.StatusBadRequest), "Invalid JSON")
 				return
 			}
-			resp, err := svc.Refresh(c.Request.Context(), req)
+			meta := &services.SessionMeta{
+				IP:        c.ClientIP(),
+				UserAgent: c.GetHeader("User-Agent"),
+			}
+			resp, err := svc.Refresh(c.Request.Context(), req, meta)
 			if err != nil {
 				utils.HandleServiceError(c, logger, err)
 				return
@@ -112,13 +124,6 @@ func RegisterRoutes(engine *gin.Engine, svc *services.Services, jwtSecret []byte
 				return
 			}
 			if err := svc.Logout(c.Request.Context(), req); err != nil {
-				utils.HandleServiceError(c, logger, err)
-				return
-			}
-			c.Status(http.StatusNoContent)
-		})
-		authPublic.POST("/auth/logout-all", func(c *gin.Context) {
-			if err := svc.LogoutAll(c.Request.Context()); err != nil {
 				utils.HandleServiceError(c, logger, err)
 				return
 			}
@@ -158,6 +163,20 @@ func RegisterRoutes(engine *gin.Engine, svc *services.Services, jwtSecret []byte
 				return
 			}
 			c.Status(http.StatusOK)
+		})
+	}
+
+	authAuthed := v1.Group("")
+	authAuthed.Use(httpmw.MaxBodySize(1 << 20))
+	authAuthed.Use(httpmw.GinAuth(jwtSecret, []string{"user", "creator", "moderator", "admin"}, logger))
+	{
+		authAuthed.POST("/auth/logout-all", func(c *gin.Context) {
+			u := httpmw.MustUserClaims(c)
+			if err := svc.LogoutAll(c.Request.Context(), u); err != nil {
+				utils.HandleServiceError(c, logger, err)
+				return
+			}
+			c.Status(http.StatusNoContent)
 		})
 	}
 

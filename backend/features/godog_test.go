@@ -16,8 +16,9 @@ import (
 	"github.com/cucumber/godog"
 	"github.com/golang-jwt/jwt/v5"
 
-	"github.com/harem-brasil/backend/internal/application"
 	"log/slog"
+
+	"github.com/harem-brasil/backend/internal/application"
 )
 
 type apiContext struct {
@@ -197,7 +198,8 @@ func aRegisteredUserWithEmail(email string) error {
 }
 
 func iHaveAValidRefreshToken() error {
-	testCtx.refreshToken = "test-refresh-token"
+	// Format must match splitRefreshToken expectations: tokenID.secret
+	testCtx.refreshToken = "00000000-0000-0000-0000-000000000000.dummysecret"
 	return nil
 }
 
