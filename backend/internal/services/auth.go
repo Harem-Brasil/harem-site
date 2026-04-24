@@ -227,6 +227,18 @@ func (s *Services) Refresh(ctx context.Context, req RefreshBody, meta *SessionMe
 	}
 
 	if session.RevokedAt != nil {
+		// Reuse detection: a revoked token was presented — assume compromise.
+		// Revoke ALL refresh tokens for this user (§3, §6.2).
+		if s.Logger != nil {
+			s.Logger.Warn("refresh token reuse detected — revoking all sessions",
+				"user_id", session.UserID,
+				"reason", "revoked_token_reuse",
+			)
+		}
+		_, _ = s.DB.Exec(ctx,
+			`UPDATE refresh_tokens SET revoked_at = NOW() WHERE user_id = $1 AND revoked_at IS NULL`,
+			session.UserID,
+		)
 		return nil, domain.Err(401, "Refresh token revoked")
 	}
 
@@ -285,12 +297,18 @@ func (s *Services) Refresh(ctx context.Context, req RefreshBody, meta *SessionMe
 		return nil, domain.Err(401, "Refresh token already used or revoked")
 	}
 
-	if err := s.storeRefreshToken(ctx, tx, user.ID, newTokenID, string(newTokenHash), meta); err != nil {
+	if err := s.storeRefreshToken(ctx, tx, user.ID, newTokenID, newTokenHash, meta); err != nil {
 		return nil, domain.Err(500, "Failed to create session")
 	}
 
 	if err := tx.Commit(ctx); err != nil {
 		return nil, domain.Err(500, "Failed to commit transaction")
+	}
+
+	if s.Logger != nil {
+		s.Logger.Info("auth refresh success",
+			"user_id", user.ID,
+		)
 	}
 
 	return &domain.AuthResponse{
@@ -313,17 +331,57 @@ type LogoutBody struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
-func (s *Services) Logout(ctx context.Context, req LogoutBody) error {
-	if req.RefreshToken != "" {
-		tokenID, _, ok := splitRefreshToken(req.RefreshToken)
-		if ok {
-			if _, err := s.DB.Exec(ctx,
-				`UPDATE refresh_tokens SET revoked_at = NOW() WHERE token_id = $1 AND revoked_at IS NULL`,
-				tokenID,
-			); err != nil {
-				return err
-			}
+func (s *Services) Logout(ctx context.Context, user *middleware.UserClaims, req LogoutBody) error {
+	if req.RefreshToken == "" {
+		// No refresh token provided — idempotent no-op per §6.2
+		return nil
+	}
+
+	tokenID, _, ok := splitRefreshToken(req.RefreshToken)
+	if !ok {
+		// Malformed token — idempotent, don't reveal existence
+		return nil
+	}
+
+	// Verify the refresh token belongs to the authenticated user
+	var ownerID string
+	err := s.DB.QueryRow(ctx,
+		`SELECT user_id FROM refresh_tokens WHERE token_id = $1`,
+		tokenID,
+	).Scan(&ownerID)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			// Token not found — idempotent
+			return nil
 		}
+		return domain.Err(500, "Database error")
+	}
+
+	if ownerID != user.UserID {
+		// Token belongs to a different user — log security event, don't reveal
+		if s.Logger != nil {
+			s.Logger.Warn("logout token ownership mismatch",
+				"user_id", user.UserID,
+				"reason", "token_belongs_to_other_user",
+			)
+		}
+		return nil
+	}
+
+	// Revoke — idempotent: if already revoked, UPDATE matches 0 rows silently
+	_, err = s.DB.Exec(ctx,
+		`UPDATE refresh_tokens SET revoked_at = NOW() WHERE token_id = $1 AND revoked_at IS NULL`,
+		tokenID,
+	)
+	if err != nil {
+		return domain.Err(500, "Database error")
+	}
+
+	if s.Logger != nil {
+		s.Logger.Info("auth logout success",
+			"user_id", user.UserID,
+		)
 	}
 	return nil
 }
@@ -332,11 +390,22 @@ func (s *Services) LogoutAll(ctx context.Context, user *middleware.UserClaims) e
 	if user == nil {
 		return domain.Err(401, "Unauthorized")
 	}
+
+	// Idempotent: if no active sessions, UPDATE matches 0 rows silently
 	_, err := s.DB.Exec(ctx,
 		`UPDATE refresh_tokens SET revoked_at = NOW() WHERE user_id = $1 AND revoked_at IS NULL`,
 		user.UserID,
 	)
-	return err
+	if err != nil {
+		return domain.Err(500, "Database error")
+	}
+
+	if s.Logger != nil {
+		s.Logger.Info("auth logout-all success",
+			"user_id", user.UserID,
+		)
+	}
+	return nil
 }
 
 func (s *Services) OAuthAuthorize(ctx context.Context, provider string) error {

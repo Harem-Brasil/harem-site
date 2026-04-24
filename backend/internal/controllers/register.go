@@ -116,21 +116,6 @@ func RegisterRoutes(engine *gin.Engine, svc *services.Services, jwtSecret []byte
 			}
 			utils.RespondJSON(c, http.StatusOK, resp)
 		})
-		authPublic.POST("/auth/logout", func(c *gin.Context) {
-			var req services.LogoutBody
-			if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
-				if logger != nil {
-					logger.Warn("invalid JSON on logout", "path", c.FullPath())
-				}
-				utils.RespondProblem(c, http.StatusBadRequest, http.StatusText(http.StatusBadRequest), "Invalid JSON")
-				return
-			}
-			if err := svc.Logout(c.Request.Context(), req); err != nil {
-				utils.HandleServiceError(c, logger, err)
-				return
-			}
-			c.Status(http.StatusNoContent)
-		})
 		authPublic.GET("/auth/oauth/:provider/authorize", func(c *gin.Context) {
 			if err := svc.OAuthAuthorize(c.Request.Context(), c.Param("provider")); err != nil {
 				utils.HandleServiceError(c, logger, err)
@@ -172,6 +157,25 @@ func RegisterRoutes(engine *gin.Engine, svc *services.Services, jwtSecret []byte
 	authAuthed.Use(httpmw.MaxBodySize(1 << 20))
 	authAuthed.Use(httpmw.GinAuth(jwtSecret, []string{"user", "creator", "moderator", "admin"}, logger))
 	{
+		authAuthed.POST("/auth/logout", func(c *gin.Context) {
+			u := httpmw.MustUserClaims(c)
+			var req services.LogoutBody
+			if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
+				if logger != nil {
+					logger.Warn("invalid JSON on logout",
+						"path", c.FullPath(),
+						"user_id", u.UserID,
+					)
+				}
+				utils.RespondProblem(c, http.StatusBadRequest, http.StatusText(http.StatusBadRequest), "Invalid JSON")
+				return
+			}
+			if err := svc.Logout(c.Request.Context(), u, req); err != nil {
+				utils.HandleServiceError(c, logger, err)
+				return
+			}
+			c.Status(http.StatusNoContent)
+		})
 		authAuthed.POST("/auth/logout-all", func(c *gin.Context) {
 			u := httpmw.MustUserClaims(c)
 			if err := svc.LogoutAll(c.Request.Context(), u); err != nil {
