@@ -32,13 +32,13 @@ func (s *Services) GetMe(ctx context.Context, claims *middleware.UserClaims) (*d
 	}
 
 	return &domain.UserPublic{
-		ID:        u.ID,
-		Username:  u.Username,
-		Email:     u.Email,
-		Role:      u.Role,
-		Bio:       u.Bio.String,
-		AvatarURL: u.AvatarURL.String,
-		CreatedAt: utils.FormatRFC3339UTC(u.CreatedAt.Time),
+		ID:         u.ID,
+		ScreenName: u.Username,
+		Email:      u.Email,
+		Role:       u.Role,
+		Bio:        u.Bio.String,
+		AvatarURL:  u.AvatarURL.String,
+		CreatedAt:  utils.FormatRFC3339UTC(u.CreatedAt.Time),
 	}, nil
 }
 
@@ -87,12 +87,12 @@ func (s *Services) GetUserByID(ctx context.Context, id string) (*domain.UserPubl
 	}
 
 	return &domain.UserPublic{
-		ID:        u.ID,
-		Username:  u.Username,
-		Role:      u.Role,
-		Bio:       u.Bio.String,
-		AvatarURL: u.AvatarURL.String,
-		CreatedAt: utils.FormatRFC3339UTC(u.CreatedAt.Time),
+		ID:         u.ID,
+		ScreenName: u.Username,
+		Role:       u.Role,
+		Bio:        u.Bio.String,
+		AvatarURL:  u.AvatarURL.String,
+		CreatedAt:  utils.FormatRFC3339UTC(u.CreatedAt.Time),
 	}, nil
 }
 
@@ -113,7 +113,7 @@ func (s *Services) ListUsers(ctx context.Context, cursor string) (*domain.Cursor
 	var users []any
 	for rows.Next() {
 		var u domain.UserPublic
-		err := rows.Scan(&u.ID, &u.Username, &u.Role, &u.AvatarURL, &u.CreatedAt)
+		err := rows.Scan(&u.ID, &u.ScreenName, &u.Role, &u.AvatarURL, &u.CreatedAt)
 		if err != nil {
 			continue
 		}
@@ -156,7 +156,7 @@ func (s *Services) GetUserPosts(ctx context.Context, userID, cursor string) (*do
 		var p domain.PostResponse
 		var author domain.UserPublic
 		err := rows.Scan(&p.ID, &p.AuthorID, &p.Content, &p.MediaURLs, &p.Visibility, &p.LikeCount,
-			&p.CreatedAt, &p.UpdatedAt, &author.ID, &author.Username, &author.Role, &author.AvatarURL)
+			&p.CreatedAt, &p.UpdatedAt, &author.ID, &author.ScreenName, &author.Role, &author.AvatarURL)
 		if err != nil {
 			continue
 		}
@@ -200,7 +200,7 @@ func (s *Services) SearchUsers(ctx context.Context, query, cursor string) (*doma
 	var users []any
 	for rows.Next() {
 		var u domain.UserPublic
-		err := rows.Scan(&u.ID, &u.Username, &u.Role, &u.AvatarURL, &u.CreatedAt)
+		err := rows.Scan(&u.ID, &u.ScreenName, &u.Role, &u.AvatarURL, &u.CreatedAt)
 		if err != nil {
 			continue
 		}

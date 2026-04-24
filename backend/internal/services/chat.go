@@ -151,7 +151,7 @@ func (s *Services) ListChatMessages(ctx context.Context, roomID, cursor string) 
 		var msg domain.ChatMessage
 		var sender domain.UserPublic
 		err := rows.Scan(&msg.ID, &msg.RoomID, &msg.SenderID, &msg.Content, &msg.CreatedAt,
-			&sender.ID, &sender.Username, &sender.Role, &sender.AvatarURL)
+			&sender.ID, &sender.ScreenName, &sender.Role, &sender.AvatarURL)
 		if err != nil {
 			continue
 		}

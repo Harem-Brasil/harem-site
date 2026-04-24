@@ -8,10 +8,12 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/harem-brasil/backend/internal/middleware"
 )
 
 func (s *Services) generateTokens(userID, email, username string, roles []string) (accessToken, refreshToken, tokenID string, expiresAt time.Time, err error) {
-	expiresAt = time.Now().UTC().Add(15 * time.Minute)
+	expiresAt = time.Now().UTC().Add(accessTokenExpiry)
+	now := time.Now().UTC()
 
 	claims := jwt.MapClaims{
 		"sub":      userID,
@@ -19,9 +21,10 @@ func (s *Services) generateTokens(userID, email, username string, roles []string
 		"username": username,
 		"roles":    roles,
 		"exp":      expiresAt.Unix(),
-		"iat":      time.Now().UTC().Unix(),
-		"iss":      "harem-api",
-		"aud":      "harem-client",
+		"iat":      now.Unix(),
+		"iss":      middleware.JWTIssuer,
+		"aud":      middleware.JWTAudience,
+		"jti":      uuid.New().String(),
 		"type":     "access",
 	}
 

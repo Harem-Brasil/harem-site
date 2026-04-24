@@ -14,48 +14,58 @@ func TestRegisterRequestValidation(t *testing.T) {
 	}{
 		{
 			name:       "valid request",
-			req:        domain.RegisterRequest{Email: "test@example.com", Username: "testuser", Password: "SecurePass1!"},
+			req:        domain.RegisterRequest{Email: "test@example.com", ScreenName: "testuser", Password: "SecurePass1!", AcceptTermsVersion: "1.0"},
 			wantFields: nil,
 		},
 		{
 			name:       "weak password - too short",
-			req:        domain.RegisterRequest{Email: "test@example.com", Username: "testuser", Password: "Ab1!"},
+			req:        domain.RegisterRequest{Email: "test@example.com", ScreenName: "testuser", Password: "Ab1!", AcceptTermsVersion: "1.0"},
 			wantFields: []string{"password"},
 		},
 		{
 			name:       "weak password - no uppercase",
-			req:        domain.RegisterRequest{Email: "test@example.com", Username: "testuser", Password: "securepass1!"},
+			req:        domain.RegisterRequest{Email: "test@example.com", ScreenName: "testuser", Password: "securepass1!", AcceptTermsVersion: "1.0"},
 			wantFields: []string{"password"},
 		},
 		{
 			name:       "weak password - no special char",
-			req:        domain.RegisterRequest{Email: "test@example.com", Username: "testuser", Password: "SecurePass1"},
+			req:        domain.RegisterRequest{Email: "test@example.com", ScreenName: "testuser", Password: "SecurePass1", AcceptTermsVersion: "1.0"},
 			wantFields: []string{"password"},
 		},
 		{
 			name:       "missing email",
-			req:        domain.RegisterRequest{Email: "", Username: "testuser", Password: "SecurePass1!"},
+			req:        domain.RegisterRequest{ScreenName: "testuser", Password: "SecurePass1!", AcceptTermsVersion: "1.0"},
 			wantFields: []string{"email"},
 		},
 		{
 			name:       "invalid email format",
-			req:        domain.RegisterRequest{Email: "not-an-email", Username: "testuser", Password: "SecurePass1!"},
+			req:        domain.RegisterRequest{Email: "not-an-email", ScreenName: "testuser", Password: "SecurePass1!", AcceptTermsVersion: "1.0"},
 			wantFields: []string{"email"},
 		},
 		{
-			name:       "missing username",
-			req:        domain.RegisterRequest{Email: "test@example.com", Username: "", Password: "SecurePass1!"},
-			wantFields: []string{"username"},
+			name:       "missing screen_name",
+			req:        domain.RegisterRequest{Email: "test@example.com", Password: "SecurePass1!", AcceptTermsVersion: "1.0"},
+			wantFields: []string{"screen_name"},
+		},
+		{
+			name:       "screen_name too short",
+			req:        domain.RegisterRequest{Email: "test@example.com", ScreenName: "a", Password: "SecurePass1!", AcceptTermsVersion: "1.0"},
+			wantFields: []string{"screen_name"},
 		},
 		{
 			name:       "missing password",
-			req:        domain.RegisterRequest{Email: "test@example.com", Username: "testuser", Password: ""},
+			req:        domain.RegisterRequest{Email: "test@example.com", ScreenName: "testuser", AcceptTermsVersion: "1.0"},
 			wantFields: []string{"password"},
+		},
+		{
+			name:       "missing accept_terms_version",
+			req:        domain.RegisterRequest{Email: "test@example.com", ScreenName: "testuser", Password: "SecurePass1!"},
+			wantFields: []string{"accept_terms_version"},
 		},
 		{
 			name:       "all fields missing",
 			req:        domain.RegisterRequest{},
-			wantFields: []string{"email", "username", "password"},
+			wantFields: []string{"email", "screen_name", "password", "accept_terms_version"},
 		},
 	}
 
@@ -85,32 +95,22 @@ func TestLoginRequestValidation(t *testing.T) {
 	}{
 		{
 			name:       "valid request",
-			req:        domain.LoginRequest{Email: "test@example.com", Password: "SecurePass1!"},
+			req:        domain.LoginRequest{Email: "test@example.com", Password: "anything"},
 			wantFields: nil,
 		},
 		{
-			name:       "weak password - too short",
-			req:        domain.LoginRequest{Email: "test@example.com", Password: "Ab1!"},
-			wantFields: []string{"password"},
-		},
-		{
-			name:       "weak password - no digit",
-			req:        domain.LoginRequest{Email: "test@example.com", Password: "SecurePass!"},
-			wantFields: []string{"password"},
-		},
-		{
 			name:       "missing email",
-			req:        domain.LoginRequest{Email: "", Password: "SecurePass1!"},
+			req:        domain.LoginRequest{Password: "anything"},
 			wantFields: []string{"email"},
 		},
 		{
 			name:       "invalid email format",
-			req:        domain.LoginRequest{Email: "not-an-email", Password: "SecurePass1!"},
+			req:        domain.LoginRequest{Email: "not-an-email", Password: "anything"},
 			wantFields: []string{"email"},
 		},
 		{
 			name:       "missing password",
-			req:        domain.LoginRequest{Email: "test@example.com", Password: ""},
+			req:        domain.LoginRequest{Email: "test@example.com"},
 			wantFields: []string{"password"},
 		},
 		{

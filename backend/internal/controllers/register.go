@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/harem-brasil/backend/internal/domain"
 	httpmw "github.com/harem-brasil/backend/internal/middleware"
@@ -15,7 +16,7 @@ import (
 )
 
 // RegisterRoutes define todos os endpoints REST sobre Gin (routing + binding + controllers finos).
-func RegisterRoutes(engine *gin.Engine, svc *services.Services, jwtSecret []byte, logger *slog.Logger) {
+func RegisterRoutes(engine *gin.Engine, svc *services.Services, jwtSecret []byte, logger *slog.Logger, rdb *redis.Client) {
 	engine.GET("/health", func(c *gin.Context) {
 		status := svc.Health(c.Request.Context())
 		code := http.StatusOK
@@ -62,6 +63,7 @@ func RegisterRoutes(engine *gin.Engine, svc *services.Services, jwtSecret []byte
 
 	authPublic := v1.Group("")
 	authPublic.Use(httpmw.MaxBodySize(1 << 20))
+	authPublic.Use(httpmw.GinStrictRateLimit(rdb, logger))
 	{
 		authPublic.POST("/auth/register", func(c *gin.Context) {
 			var req domain.RegisterRequest

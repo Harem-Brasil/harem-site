@@ -17,6 +17,8 @@ func TestGinAuthMiddleware(t *testing.T) {
 		"sub":   "user-123",
 		"roles": []string{"user"},
 		"exp":   time.Now().Add(time.Hour).Unix(),
+		"iss":   JWTIssuer,
+		"aud":   JWTAudience,
 	})
 	validToken, _ := token.SignedString(secret)
 
@@ -87,6 +89,8 @@ func TestExpiredToken(t *testing.T) {
 		"sub":   "user-123",
 		"roles": []string{"user"},
 		"exp":   time.Now().Add(-time.Hour).Unix(),
+		"iss":   JWTIssuer,
+		"aud":   JWTAudience,
 	})
 	expiredToken, _ := token.SignedString(secret)
 
@@ -113,6 +117,8 @@ func TestWrongSecret(t *testing.T) {
 		"sub":   "user-123",
 		"roles": []string{"user"},
 		"exp":   time.Now().Add(time.Hour).Unix(),
+		"iss":   JWTIssuer,
+		"aud":   JWTAudience,
 	})
 	invalidToken, _ := token.SignedString(wrongSecret)
 
@@ -138,6 +144,8 @@ func TestAdminOnlyAccess(t *testing.T) {
 		"sub":   "user-123",
 		"roles": []string{"user"},
 		"exp":   time.Now().Add(time.Hour).Unix(),
+		"iss":   JWTIssuer,
+		"aud":   JWTAudience,
 	})
 	userToken, _ := token.SignedString(secret)
 

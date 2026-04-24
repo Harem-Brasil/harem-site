@@ -79,7 +79,7 @@ func NewHTTPServer(ctx context.Context, cfg Config) (*HTTPServer, error) {
 	})
 
 	jwtSecret := []byte(cfg.JWTSecret)
-	controllers.RegisterRoutes(engine, svc, jwtSecret, cfg.Logger)
+	controllers.RegisterRoutes(engine, svc, jwtSecret, cfg.Logger, rdb)
 
 	return &HTTPServer{Engine: engine, Services: svc}, nil
 }

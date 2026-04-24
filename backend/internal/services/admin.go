@@ -34,7 +34,7 @@ func (s *Services) AdminListUsers(ctx context.Context, cursor string) (*domain.C
 	for rows.Next() {
 		var u domain.UserPublic
 		var createdAt time.Time
-		err := rows.Scan(&u.ID, &u.Username, &u.Email, &u.Role, &createdAt)
+		err := rows.Scan(&u.ID, &u.ScreenName, &u.Email, &u.Role, &createdAt)
 		if err != nil {
 			continue
 		}

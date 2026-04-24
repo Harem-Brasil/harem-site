@@ -9,9 +9,10 @@ import (
 // --- Auth / usuário ---
 
 type RegisterRequest struct {
-	Email    string `json:"email" binding:"required,max=320"`
-	Username string `json:"username" binding:"required,max=64"`
-	Password string `json:"password" binding:"required,max=128"`
+	Email              string `json:"email" binding:"required,max=320"`
+	ScreenName         string `json:"screen_name" binding:"required,max=64"`
+	Password           string `json:"password" binding:"required,max=128"`
+	AcceptTermsVersion string `json:"accept_terms_version" binding:"required,max=32"`
 }
 
 // Validate checks RegisterRequest fields and returns field-specific errors.
@@ -25,13 +26,18 @@ func (req *RegisterRequest) Validate() (map[string]string, bool) {
 	} else {
 		req.Email = addr.Address
 	}
-	if req.Username == "" {
-		errors["username"] = "Username is required"
+	if req.ScreenName == "" {
+		errors["screen_name"] = "Screen name is required"
+	} else if msg := validateScreenName(req.ScreenName); msg != "" {
+		errors["screen_name"] = msg
 	}
 	if req.Password == "" {
 		errors["password"] = "Password is required"
 	} else if msg := validatePassword(req.Password); msg != "" {
 		errors["password"] = msg
+	}
+	if req.AcceptTermsVersion == "" {
+		errors["accept_terms_version"] = "Terms acceptance version is required"
 	}
 	return errors, len(errors) == 0
 }
@@ -54,10 +60,23 @@ func (req *LoginRequest) Validate() (map[string]string, bool) {
 	}
 	if req.Password == "" {
 		errors["password"] = "Password is required"
-	} else if msg := validatePassword(req.Password); msg != "" {
-		errors["password"] = msg
 	}
 	return errors, len(errors) == 0
+}
+
+func validateScreenName(name string) string {
+	if len(name) < 2 {
+		return "Screen name must be at least 2 characters long"
+	}
+	if len(name) > 64 {
+		return "Screen name must be at most 64 characters long"
+	}
+	for _, r := range name {
+		if r < 32 || r == 127 {
+			return "Screen name contains invalid characters"
+		}
+	}
+	return ""
 }
 
 func validatePassword(password string) string {
@@ -93,21 +112,23 @@ func validatePassword(password string) string {
 }
 
 type AuthResponse struct {
-	AccessToken  string     `json:"access_token"`
-	RefreshToken string     `json:"refresh_token"`
-	TokenType    string     `json:"token_type"`
-	ExpiresAt    time.Time  `json:"expires_at"`
-	User         UserPublic `json:"user"`
+	AccessToken      string     `json:"access_token"`
+	AccessExpiresIn  int64      `json:"access_expires_in"`
+	RefreshToken     string     `json:"refresh_token"`
+	RefreshExpiresIn int64      `json:"refresh_expires_in"`
+	TokenType        string     `json:"token_type"`
+	ExpiresAt        time.Time  `json:"expires_at"`
+	User             UserPublic `json:"user"`
 }
 
 type UserPublic struct {
-	ID        string `json:"id"`
-	Username  string `json:"username"`
-	Email     string `json:"email,omitempty"`
-	Role      string `json:"role"`
-	AvatarURL string `json:"avatar_url,omitempty"`
-	Bio       string `json:"bio,omitempty"`
-	CreatedAt string `json:"created_at"`
+	ID         string `json:"id"`
+	ScreenName string `json:"screen_name"`
+	Email      string `json:"email,omitempty"`
+	Role       string `json:"role"`
+	AvatarURL  string `json:"avatar_url,omitempty"`
+	Bio        string `json:"bio,omitempty"`
+	CreatedAt  string `json:"created_at"`
 }
 
 // --- Posts ---

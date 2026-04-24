@@ -33,7 +33,7 @@ func (s *Services) ListPosts(ctx context.Context, cursor string) (*domain.Cursor
 		var p domain.PostResponse
 		var author domain.UserPublic
 		err := rows.Scan(&p.ID, &p.AuthorID, &p.Content, &p.MediaURLs, &p.Visibility, &p.LikeCount,
-			&p.CreatedAt, &p.UpdatedAt, &author.ID, &author.Username, &author.Role, &author.AvatarURL)
+			&p.CreatedAt, &p.UpdatedAt, &author.ID, &author.ScreenName, &author.Role, &author.AvatarURL)
 		if err != nil {
 			continue
 		}
@@ -66,7 +66,7 @@ func (s *Services) GetPost(ctx context.Context, id string) (*domain.PostResponse
 		 WHERE p.id = $1 AND p.deleted_at IS NULL`,
 		id,
 	).Scan(&p.ID, &p.AuthorID, &p.Content, &p.MediaURLs, &p.Visibility, &p.LikeCount,
-		&p.CreatedAt, &p.UpdatedAt, &author.ID, &author.Username, &author.Role, &author.AvatarURL)
+		&p.CreatedAt, &p.UpdatedAt, &author.ID, &author.ScreenName, &author.Role, &author.AvatarURL)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -199,7 +199,7 @@ func (s *Services) ListComments(ctx context.Context, postID, cursor string) (*do
 		var c domain.CommentResponse
 		var author domain.UserPublic
 		err := rows.Scan(&c.ID, &c.PostID, &c.AuthorID, &c.Content, &c.CreatedAt,
-			&author.ID, &author.Username, &author.Role, &author.AvatarURL)
+			&author.ID, &author.ScreenName, &author.Role, &author.AvatarURL)
 		if err != nil {
 			continue
 		}
@@ -272,7 +272,7 @@ func (s *Services) FeedHome(ctx context.Context, user *middleware.UserClaims, cu
 		var p domain.PostResponse
 		var author domain.UserPublic
 		err := rows.Scan(&p.ID, &p.AuthorID, &p.Content, &p.MediaURLs, &p.Visibility, &p.LikeCount,
-			&p.CreatedAt, &p.UpdatedAt, &author.ID, &author.Username, &author.Role, &author.AvatarURL)
+			&p.CreatedAt, &p.UpdatedAt, &author.ID, &author.ScreenName, &author.Role, &author.AvatarURL)
 		if err != nil {
 			continue
 		}

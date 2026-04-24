@@ -11,6 +11,11 @@ import (
 	"github.com/harem-brasil/backend/internal/utils"
 )
 
+const (
+	JWTIssuer   = "harem-api"
+	JWTAudience = "harem-client"
+)
+
 type ContextKey string
 
 const UserContextKey ContextKey = "user"
@@ -62,7 +67,10 @@ func GinAuth(jwtSecret []byte, allowedRoles []string, logger *slog.Logger) gin.H
 				return nil, jwt.ErrSignatureInvalid
 			}
 			return jwtSecret, nil
-		})
+		},
+			jwt.WithIssuer(JWTIssuer),
+			jwt.WithAudience(JWTAudience),
+		)
 
 		if err != nil || !token.Valid {
 			if logger != nil {

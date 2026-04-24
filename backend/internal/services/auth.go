@@ -15,7 +15,11 @@ import (
 	"github.com/harem-brasil/backend/internal/utils"
 )
 
-const refreshTokenExpiry = 7 * 24 * time.Hour
+const (
+	refreshTokenExpiry = 7 * 24 * time.Hour
+	accessTokenExpiry  = 15 * time.Minute
+	bcryptCost         = 12
+)
 
 // execer abstracts pgxpool.Pool and pgx.Tx so storeRefreshToken works with either.
 type execer interface {
@@ -45,7 +49,7 @@ func (s *Services) Register(ctx context.Context, req domain.RegisterRequest, met
 		return nil, domain.ErrValidation("One or more fields failed validation", fieldErrors)
 	}
 
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcryptCost)
 	if err != nil {
 		return nil, domain.Err(500, "Failed to process password")
 	}
@@ -54,9 +58,9 @@ func (s *Services) Register(ctx context.Context, req domain.RegisterRequest, met
 	now := time.Now().UTC()
 
 	_, err = s.DB.Exec(ctx,
-		`INSERT INTO users (id, email, username, password_hash, role, created_at, updated_at) 
-		 VALUES ($1, $2, $3, $4, $5, $6, $6)`,
-		userID, req.Email, req.Username, string(hashedPassword), "user", now,
+		`INSERT INTO users (id, email, username, password_hash, role, accept_terms_version, created_at, updated_at) 
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $7)`,
+		userID, req.Email, req.ScreenName, string(hashedPassword), "user", req.AcceptTermsVersion, now,
 	)
 
 	if err != nil {
@@ -67,7 +71,7 @@ func (s *Services) Register(ctx context.Context, req domain.RegisterRequest, met
 		return nil, domain.Err(500, "Database error")
 	}
 
-	accessToken, refreshToken, tokenID, expiresAt, err := s.generateTokens(userID, req.Email, req.Username, []string{"user"})
+	accessToken, refreshToken, tokenID, expiresAt, err := s.generateTokens(userID, req.Email, req.ScreenName, []string{"user"})
 	if err != nil {
 		return nil, domain.Err(500, "Failed to generate tokens")
 	}
@@ -77,7 +81,7 @@ func (s *Services) Register(ctx context.Context, req domain.RegisterRequest, met
 		return nil, domain.Err(500, "Failed to process refresh token")
 	}
 
-	tokenHash, err := bcrypt.GenerateFromPassword([]byte(secret), bcrypt.DefaultCost)
+	tokenHash, err := bcrypt.GenerateFromPassword([]byte(secret), bcryptCost)
 	if err != nil {
 		return nil, domain.Err(500, "Failed to hash refresh token")
 	}
@@ -86,17 +90,26 @@ func (s *Services) Register(ctx context.Context, req domain.RegisterRequest, met
 		return nil, domain.Err(500, "Failed to create session")
 	}
 
+	if s.Logger != nil {
+		s.Logger.Info("auth register success",
+			"user_id", userID,
+			"role", "user",
+		)
+	}
+
 	return &domain.AuthResponse{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		TokenType:    "Bearer",
-		ExpiresAt:    expiresAt,
+		AccessToken:      accessToken,
+		AccessExpiresIn:  int64(accessTokenExpiry.Seconds()),
+		RefreshToken:     refreshToken,
+		RefreshExpiresIn: int64(refreshTokenExpiry.Seconds()),
+		TokenType:        "Bearer",
+		ExpiresAt:        expiresAt,
 		User: domain.UserPublic{
-			ID:        userID,
-			Username:  req.Username,
-			Email:     req.Email,
-			Role:      "user",
-			CreatedAt: utils.FormatRFC3339UTC(now),
+			ID:         userID,
+			ScreenName: req.ScreenName,
+			Email:      req.Email,
+			Role:       "user",
+			CreatedAt:  utils.FormatRFC3339UTC(now),
 		},
 	}, nil
 }
@@ -129,6 +142,12 @@ func (s *Services) Login(ctx context.Context, req domain.LoginRequest, meta *Ses
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
+		if s.Logger != nil {
+			s.Logger.Warn("auth login failure",
+				"reason", "invalid_credentials",
+				"user_id", user.ID,
+			)
+		}
 		return nil, domain.Err(401, "Invalid credentials")
 	}
 
@@ -142,7 +161,7 @@ func (s *Services) Login(ctx context.Context, req domain.LoginRequest, meta *Ses
 		return nil, domain.Err(500, "Failed to process refresh token")
 	}
 
-	tokenHash, err := bcrypt.GenerateFromPassword([]byte(secret), bcrypt.DefaultCost)
+	tokenHash, err := bcrypt.GenerateFromPassword([]byte(secret), bcryptCost)
 	if err != nil {
 		return nil, domain.Err(500, "Failed to hash refresh token")
 	}
@@ -151,17 +170,26 @@ func (s *Services) Login(ctx context.Context, req domain.LoginRequest, meta *Ses
 		return nil, domain.Err(500, "Failed to create session")
 	}
 
+	if s.Logger != nil {
+		s.Logger.Info("auth login success",
+			"user_id", user.ID,
+			"role", user.Role,
+		)
+	}
+
 	return &domain.AuthResponse{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		TokenType:    "Bearer",
-		ExpiresAt:    expiresAt,
+		AccessToken:      accessToken,
+		AccessExpiresIn:  int64(accessTokenExpiry.Seconds()),
+		RefreshToken:     refreshToken,
+		RefreshExpiresIn: int64(refreshTokenExpiry.Seconds()),
+		TokenType:        "Bearer",
+		ExpiresAt:        expiresAt,
 		User: domain.UserPublic{
-			ID:        user.ID,
-			Username:  user.Username,
-			Email:     user.Email,
-			Role:      user.Role,
-			CreatedAt: utils.FormatRFC3339UTC(user.CreatedAt),
+			ID:         user.ID,
+			ScreenName: user.Username,
+			Email:      user.Email,
+			Role:       user.Role,
+			CreatedAt:  utils.FormatRFC3339UTC(user.CreatedAt),
 		},
 	}, nil
 }
@@ -240,7 +268,7 @@ func (s *Services) Refresh(ctx context.Context, req RefreshBody, meta *SessionMe
 	}
 
 	// Compute bcrypt hash BEFORE opening transaction to avoid holding DB locks during expensive operation.
-	newTokenHash, err := bcrypt.GenerateFromPassword([]byte(newSecret), bcrypt.DefaultCost)
+	newTokenHash, err := bcrypt.GenerateFromPassword([]byte(newSecret), bcryptCost)
 	if err != nil {
 		return nil, domain.Err(500, "Failed to hash refresh token")
 	}
@@ -273,15 +301,17 @@ func (s *Services) Refresh(ctx context.Context, req RefreshBody, meta *SessionMe
 	}
 
 	return &domain.AuthResponse{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		TokenType:    "Bearer",
-		ExpiresAt:    expiresAt,
+		AccessToken:      accessToken,
+		AccessExpiresIn:  int64(accessTokenExpiry.Seconds()),
+		RefreshToken:     refreshToken,
+		RefreshExpiresIn: int64(refreshTokenExpiry.Seconds()),
+		TokenType:        "Bearer",
+		ExpiresAt:        expiresAt,
 		User: domain.UserPublic{
-			ID:       user.ID,
-			Email:    user.Email,
-			Username: user.Username,
-			Role:     user.Role,
+			ID:         user.ID,
+			Email:      user.Email,
+			ScreenName: user.Username,
+			Role:       user.Role,
 		},
 	}, nil
 }

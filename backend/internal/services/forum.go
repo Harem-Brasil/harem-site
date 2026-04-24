@@ -73,7 +73,7 @@ func (s *Services) ListForumTopics(ctx context.Context, categoryID, cursor strin
 		var lastReply pgtype.Timestamptz
 		err := rows.Scan(&tp.ID, &tp.CategoryID, &tp.AuthorID, &tp.Title, &tp.Slug, &tp.ReplyCount, &tp.ViewCount,
 			&tp.IsPinned, &tp.IsLocked, &lastReply, &tp.CreatedAt,
-			&author.ID, &author.Username, &author.Role, &author.AvatarURL)
+			&author.ID, &author.ScreenName, &author.Role, &author.AvatarURL)
 		if err != nil {
 			continue
 		}
@@ -164,7 +164,7 @@ func (s *Services) GetForumTopic(ctx context.Context, id string) (*domain.ForumT
 		id,
 	).Scan(&t.ID, &t.CategoryID, &t.AuthorID, &t.Title, &t.Slug, &t.ReplyCount, &t.ViewCount,
 		&t.IsPinned, &t.IsLocked, &lastReply, &t.CreatedAt,
-		&author.ID, &author.Username, &author.Role, &author.AvatarURL)
+		&author.ID, &author.ScreenName, &author.Role, &author.AvatarURL)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

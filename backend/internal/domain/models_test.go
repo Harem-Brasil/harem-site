@@ -9,12 +9,15 @@ func TestRegisterRequestValidate(t *testing.T) {
 		wantFields []string
 		wantOk     bool
 	}{
-		{"valid", RegisterRequest{Email: "a@b.com", Username: "user", Password: "Secure1!"}, nil, true},
-		{"missing email", RegisterRequest{Username: "user", Password: "Secure1!"}, []string{"email"}, false},
-		{"invalid email", RegisterRequest{Email: "nope", Username: "user", Password: "Secure1!"}, []string{"email"}, false},
-		{"missing username", RegisterRequest{Email: "a@b.com", Password: "Secure1!"}, []string{"username"}, false},
-		{"missing password", RegisterRequest{Email: "a@b.com", Username: "user"}, []string{"password"}, false},
-		{"weak password", RegisterRequest{Email: "a@b.com", Username: "user", Password: "abc"}, []string{"password"}, false},
+		{"valid", RegisterRequest{Email: "a@b.com", ScreenName: "user", Password: "Secure1!", AcceptTermsVersion: "1.0"}, nil, true},
+		{"missing email", RegisterRequest{ScreenName: "user", Password: "Secure1!", AcceptTermsVersion: "1.0"}, []string{"email"}, false},
+		{"invalid email", RegisterRequest{Email: "nope", ScreenName: "user", Password: "Secure1!", AcceptTermsVersion: "1.0"}, []string{"email"}, false},
+		{"missing screen_name", RegisterRequest{Email: "a@b.com", Password: "Secure1!", AcceptTermsVersion: "1.0"}, []string{"screen_name"}, false},
+		{"screen_name too short", RegisterRequest{Email: "a@b.com", ScreenName: "a", Password: "Secure1!", AcceptTermsVersion: "1.0"}, []string{"screen_name"}, false},
+		{"missing password", RegisterRequest{Email: "a@b.com", ScreenName: "user", AcceptTermsVersion: "1.0"}, []string{"password"}, false},
+		{"weak password", RegisterRequest{Email: "a@b.com", ScreenName: "user", Password: "abc", AcceptTermsVersion: "1.0"}, []string{"password"}, false},
+		{"missing accept_terms_version", RegisterRequest{Email: "a@b.com", ScreenName: "user", Password: "Secure1!"}, []string{"accept_terms_version"}, false},
+		{"all fields missing", RegisterRequest{}, []string{"email", "screen_name", "password", "accept_terms_version"}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -38,11 +41,11 @@ func TestLoginRequestValidate(t *testing.T) {
 		wantFields []string
 		wantOk     bool
 	}{
-		{"valid", LoginRequest{Email: "a@b.com", Password: "Secure1!"}, nil, true},
-		{"missing email", LoginRequest{Password: "Secure1!"}, []string{"email"}, false},
-		{"invalid email", LoginRequest{Email: "nope", Password: "Secure1!"}, []string{"email"}, false},
+		{"valid", LoginRequest{Email: "a@b.com", Password: "anything"}, nil, true},
+		{"missing email", LoginRequest{Password: "anything"}, []string{"email"}, false},
+		{"invalid email", LoginRequest{Email: "nope", Password: "anything"}, []string{"email"}, false},
 		{"missing password", LoginRequest{Email: "a@b.com"}, []string{"password"}, false},
-		{"weak password", LoginRequest{Email: "a@b.com", Password: "abc"}, []string{"password"}, false},
+		{"all fields missing", LoginRequest{}, []string{"email", "password"}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -77,6 +80,31 @@ func TestValidatePassword(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.password, func(t *testing.T) {
 			msg := validatePassword(tt.password)
+			if tt.wantErr && msg == "" {
+				t.Error("expected error, got none")
+			}
+			if !tt.wantErr && msg != "" {
+				t.Errorf("unexpected error: %s", msg)
+			}
+		})
+	}
+}
+
+func TestValidateScreenName(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		wantErr bool
+	}{
+		{"valid", "user123", false},
+		{"minimum length", "ab", false},
+		{"too short", "a", true},
+		{"control char", "user\x00name", true},
+		{"del char", "user\x7Fname", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msg := validateScreenName(tt.input)
 			if tt.wantErr && msg == "" {
 				t.Error("expected error, got none")
 			}
