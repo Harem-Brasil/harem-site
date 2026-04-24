@@ -27,6 +27,8 @@ func (s *Services) Register(ctx context.Context, req domain.RegisterRequest) (*d
 	}
 	if req.Password == "" {
 		validationErrors["password"] = "Password is required"
+	} else if msg := utils.ValidatePassword(req.Password); msg != "" {
+		validationErrors["password"] = msg
 	}
 	if len(validationErrors) > 0 {
 		return nil, domain.ErrValidation("One or more fields failed validation", validationErrors)
@@ -92,6 +94,8 @@ func (s *Services) Login(ctx context.Context, req domain.LoginRequest) (*domain.
 	}
 	if req.Password == "" {
 		validationErrors["password"] = "Password is required"
+	} else if msg := utils.ValidatePassword(req.Password); msg != "" {
+		validationErrors["password"] = msg
 	}
 	if len(validationErrors) > 0 {
 		return nil, domain.ErrValidation("One or more fields failed validation", validationErrors)
