@@ -2,6 +2,8 @@ package services
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"time"
 
@@ -81,12 +83,9 @@ func (s *Services) Register(ctx context.Context, req domain.RegisterRequest, met
 		return nil, domain.Err(500, "Failed to process refresh token")
 	}
 
-	tokenHash, err := bcrypt.GenerateFromPassword([]byte(secret), bcryptCost)
-	if err != nil {
-		return nil, domain.Err(500, "Failed to hash refresh token")
-	}
+	tokenHash := sha256Hash(secret)
 
-	if err := s.storeRefreshToken(ctx, s.DB, userID, tokenID, string(tokenHash), meta); err != nil {
+	if err := s.storeRefreshToken(ctx, s.DB, userID, tokenID, tokenHash, meta); err != nil {
 		return nil, domain.Err(500, "Failed to create session")
 	}
 
@@ -161,12 +160,9 @@ func (s *Services) Login(ctx context.Context, req domain.LoginRequest, meta *Ses
 		return nil, domain.Err(500, "Failed to process refresh token")
 	}
 
-	tokenHash, err := bcrypt.GenerateFromPassword([]byte(secret), bcryptCost)
-	if err != nil {
-		return nil, domain.Err(500, "Failed to hash refresh token")
-	}
+	tokenHash := sha256Hash(secret)
 
-	if err := s.storeRefreshToken(ctx, s.DB, user.ID, tokenID, string(tokenHash), meta); err != nil {
+	if err := s.storeRefreshToken(ctx, s.DB, user.ID, tokenID, tokenHash, meta); err != nil {
 		return nil, domain.Err(500, "Failed to create session")
 	}
 
@@ -238,7 +234,7 @@ func (s *Services) Refresh(ctx context.Context, req RefreshBody, meta *SessionMe
 		return nil, domain.Err(401, "Refresh token expired")
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(session.TokenHash), []byte(secret)); err != nil {
+	if sha256Hash(secret) != session.TokenHash {
 		return nil, domain.Err(401, "Invalid refresh token")
 	}
 
@@ -267,11 +263,8 @@ func (s *Services) Refresh(ctx context.Context, req RefreshBody, meta *SessionMe
 		return nil, domain.Err(500, "Failed to process refresh token")
 	}
 
-	// Compute bcrypt hash BEFORE opening transaction to avoid holding DB locks during expensive operation.
-	newTokenHash, err := bcrypt.GenerateFromPassword([]byte(newSecret), bcryptCost)
-	if err != nil {
-		return nil, domain.Err(500, "Failed to hash refresh token")
-	}
+	// Compute SHA-256 hash BEFORE opening transaction to avoid holding DB locks.
+	newTokenHash := sha256Hash(newSecret)
 
 	// Atomic rotation: revoke old token + insert new token in a single transaction.
 	tx, err := s.DB.Begin(ctx)
@@ -364,4 +357,12 @@ func (s *Services) PasswordForgot(ctx context.Context) error {
 
 func (s *Services) PasswordReset(ctx context.Context) error {
 	return domain.Err(501, "Password reset not yet implemented")
+}
+
+// sha256Hash returns the hex-encoded SHA-256 hash of the input.
+// Used for refresh token secrets which are already high-entropy crypto-random values,
+// so bcrypt is unnecessary overhead — SHA-256 provides equivalent security.
+func sha256Hash(input string) string {
+	h := sha256.Sum256([]byte(input))
+	return hex.EncodeToString(h[:])
 }

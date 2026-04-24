@@ -73,7 +73,7 @@ func validateScreenName(name string) string {
 		return "Screen name must be at most 64 characters long"
 	}
 	for _, r := range name {
-		if !unicode.IsPrint(r) {
+		if !unicode.IsPrint(r) || unicode.IsSpace(r) {
 			return "Screen name contains invalid characters"
 		}
 	}

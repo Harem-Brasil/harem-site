@@ -102,6 +102,10 @@ func TestValidateScreenName(t *testing.T) {
 		{"control char", "user\x00name", true},
 		{"del char", "user\x7Fname", true},
 		{"zero-width space", "user\u200Bname", true},
+		{"space", "user name", true},
+		{"tab", "user\tname", true},
+		{"leading space", " username", true},
+		{"trailing space", "username ", true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

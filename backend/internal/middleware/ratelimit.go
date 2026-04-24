@@ -16,13 +16,14 @@ import (
 // rateLimitScript is a Lua script that atomically increments a key and sets
 // its TTL only on the first increment, ensuring no permanent keys even on crashes.
 // Compatible with Redis 6.x (no EXPIRE NX needed).
-const rateLimitScript = `
+// Uses redis.NewScript so EVALSHA is used after the first call, avoiding repeated script body transfer.
+var rateLimitScript = redis.NewScript(`
 local count = redis.call("INCR", KEYS[1])
 if count == 1 then
   redis.call("EXPIRE", KEYS[1], ARGV[1])
 end
 return count
-`
+`)
 
 // GinRateLimit por IP cliente (Redis). Gin expõe ClientIP() com suporte a proxies configurados.
 func GinRateLimit(redis *redis.Client, logger *slog.Logger) gin.HandlerFunc {
@@ -42,7 +43,7 @@ func ginRateLimitWithConfig(rdb *redis.Client, logger *slog.Logger, keyPrefix st
 
 		if rdb != nil {
 			// Lua script: atomic INCR + conditional EXPIRE (Redis 6.x compatible)
-			count, err := rdb.Eval(ctx, rateLimitScript, []string{key}, int(window.Seconds())).Int64()
+			count, err := rateLimitScript.Run(ctx, rdb, []string{key}, int(window.Seconds())).Int64()
 
 			if err == nil {
 				c.Header("RateLimit-Limit", strconv.FormatInt(limit, 10))
