@@ -1,6 +1,10 @@
 package domain
 
-import "time"
+import (
+	"net/mail"
+	"time"
+	"unicode"
+)
 
 // --- Auth / usuário ---
 
@@ -10,9 +14,82 @@ type RegisterRequest struct {
 	Password string `json:"password" binding:"required,max=128"`
 }
 
+// Validate checks RegisterRequest fields and returns field-specific errors.
+// The bool indicates whether validation passed (true = no errors).
+func (req *RegisterRequest) Validate() (map[string]string, bool) {
+	errors := make(map[string]string)
+	if req.Email == "" {
+		errors["email"] = "Email is required"
+	} else if addr, err := mail.ParseAddress(req.Email); err != nil {
+		errors["email"] = "Invalid email format"
+	} else {
+		req.Email = addr.Address
+	}
+	if req.Username == "" {
+		errors["username"] = "Username is required"
+	}
+	if req.Password == "" {
+		errors["password"] = "Password is required"
+	} else if msg := validatePassword(req.Password); msg != "" {
+		errors["password"] = msg
+	}
+	return errors, len(errors) == 0
+}
+
 type LoginRequest struct {
 	Email    string `json:"email" binding:"required,max=320"`
 	Password string `json:"password" binding:"required,max=128"`
+}
+
+// Validate checks LoginRequest fields and returns field-specific errors.
+// The bool indicates whether validation passed (true = no errors).
+func (req *LoginRequest) Validate() (map[string]string, bool) {
+	errors := make(map[string]string)
+	if req.Email == "" {
+		errors["email"] = "Email is required"
+	} else if addr, err := mail.ParseAddress(req.Email); err != nil {
+		errors["email"] = "Invalid email format"
+	} else {
+		req.Email = addr.Address
+	}
+	if req.Password == "" {
+		errors["password"] = "Password is required"
+	} else if msg := validatePassword(req.Password); msg != "" {
+		errors["password"] = msg
+	}
+	return errors, len(errors) == 0
+}
+
+func validatePassword(password string) string {
+	if len(password) < 8 {
+		return "Password must be at least 8 characters long"
+	}
+	var hasLower, hasUpper, hasDigit, hasSpecial bool
+	for _, r := range password {
+		switch {
+		case unicode.IsLower(r):
+			hasLower = true
+		case unicode.IsUpper(r):
+			hasUpper = true
+		case unicode.IsDigit(r):
+			hasDigit = true
+		case unicode.IsPunct(r) || unicode.IsSymbol(r):
+			hasSpecial = true
+		}
+	}
+	if !hasLower {
+		return "Password must contain at least one lowercase letter"
+	}
+	if !hasUpper {
+		return "Password must contain at least one uppercase letter"
+	}
+	if !hasDigit {
+		return "Password must contain at least one number"
+	}
+	if !hasSpecial {
+		return "Password must contain at least one special character"
+	}
+	return ""
 }
 
 type AuthResponse struct {

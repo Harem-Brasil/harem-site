@@ -15,10 +15,9 @@ import (
 )
 
 func (s *Services) Register(ctx context.Context, req domain.RegisterRequest) (*domain.AuthResponse, error) {
-	if req.Email == "" || req.Username == "" || req.Password == "" {
-		return nil, domain.ErrValidation("One or more fields failed validation", map[string]string{
-			"fields": "email, username, and password are required",
-		})
+	fieldErrors, ok := req.Validate()
+	if !ok {
+		return nil, domain.ErrValidation("One or more fields failed validation", fieldErrors)
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
@@ -73,6 +72,11 @@ func (s *Services) Register(ctx context.Context, req domain.RegisterRequest) (*d
 }
 
 func (s *Services) Login(ctx context.Context, req domain.LoginRequest) (*domain.AuthResponse, error) {
+	fieldErrors, ok := req.Validate()
+	if !ok {
+		return nil, domain.ErrValidation("One or more fields failed validation", fieldErrors)
+	}
+
 	var user struct {
 		ID           string
 		Username     string

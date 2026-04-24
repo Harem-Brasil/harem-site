@@ -14,9 +14,9 @@ Funcionalidade: Endpoints de Autenticação
       | johndoe  | john@example.com  | SecurePass123! |
     Quando eu enviar uma requisição POST para "/api/v1/auth/register" com o payload
     Então o código de status da resposta deve ser 201
-    E a resposta deve conter "access_token"
-    E a resposta deve conter "refresh_token"
-    E a resposta deve conter "user"
+    E a resposta deve conter "access_token" não vazio
+    E a resposta deve conter "refresh_token" não vazio
+    E a resposta deve conter "user" com dados estruturados sem campos sensíveis
 
   Cenário: Registrar com email duplicado
     Dado que um usuário com email "existing@example.com" já existe
@@ -39,8 +39,9 @@ Funcionalidade: Endpoints de Autenticação
       | email             | password         |
       | user@example.com  | SecurePass123!   |
     Então o código de status da resposta deve ser 200
-    E a resposta deve conter "access_token"
-    E a resposta deve conter "refresh_token"
+    E a resposta deve conter "access_token" não vazio
+    E a resposta deve conter "refresh_token" não vazio
+    E a resposta deve conter "user" com dados estruturados sem campos sensíveis
 
   Cenário: Login com credenciais inválidas
     Quando eu enviar uma requisição POST para "/api/v1/auth/login" com:
@@ -55,8 +56,8 @@ Funcionalidade: Endpoints de Autenticação
       | refresh_token          |
       | valid-refresh-token    |
     Então o código de status da resposta deve ser 200
-    E a resposta deve conter "access_token"
-    E a resposta deve conter "refresh_token"
+    E a resposta deve conter "access_token" não vazio
+    E a resposta deve conter "refresh_token" não vazio
 
   Cenário: Logout da sessão atual
     Dado que eu estou autenticado como usuário "johndoe"
@@ -74,7 +75,7 @@ Funcionalidade: Endpoints de Autenticação
       | email             |
       | user@example.com  |
     Então o código de status da resposta deve ser 202
-    E a resposta deve conter "message"
+    E a resposta deve conter "message" não vazia
 
   Cenário: Resetar senha com token válido
     Dado que eu tenho um token de reset de senha válido

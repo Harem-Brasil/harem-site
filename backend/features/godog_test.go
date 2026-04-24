@@ -102,6 +102,12 @@ func InitializeScenario(ctx *godog.ScenarioContext) {
 	ctx.Step(`^cada pedido deve conter "([^"]*)"$`, eachOrderShouldContain)
 	ctx.Step(`^a resposta deve conter no máximo (\d+) itens$`, theResponseShouldContainAtMostItems)
 	ctx.Step(`^o evento deve ser registrado sem dados sensíveis$`, theEventShouldBeLoggedWithoutSensitiveData)
+
+	// Robust auth assertion steps - pt-BR
+	ctx.Step(`^a resposta deve conter "access_token" não vazio$`, theResponseShouldContainNonEmptyAccessToken)
+	ctx.Step(`^a resposta deve conter "refresh_token" não vazio$`, theResponseShouldContainNonEmptyRefreshToken)
+	ctx.Step(`^a resposta deve conter "user" com dados estruturados sem campos sensíveis$`, theResponseShouldContainStructuredUserWithoutSensitiveFields)
+	ctx.Step(`^a resposta deve conter "message" não vazia$`, theResponseShouldContainNonEmptyMessage)
 }
 
 func theAPIIsRunning() error {
@@ -159,9 +165,9 @@ const testJWTSecret = "test-jwt-secret-that-is-long-enough-for-tests-32chars"
 
 func generateTestToken(username, role string) string {
 	claims := jwt.MapClaims{
-		"sub":   username,
-		"roles": []string{role},
-		"email": username + "@test.local",
+		"sub":      username,
+		"roles":    []string{role},
+		"email":    username + "@test.local",
 		"username": username,
 		"exp":      time.Now().Add(time.Hour).Unix(),
 		"iat":      time.Now().Unix(),
@@ -433,6 +439,104 @@ func theResponseShouldContainAtMostItems(count int) error {
 }
 
 func theEventShouldBeLoggedWithoutSensitiveData() error {
+	return nil
+}
+
+func theResponseShouldContainNonEmptyMessage() error {
+	if testCtx.response == nil {
+		return fmt.Errorf("response is not a JSON object")
+	}
+	val, ok := testCtx.response["message"]
+	if !ok {
+		return fmt.Errorf("response does not contain field 'message'")
+	}
+	s, ok := val.(string)
+	if !ok || s == "" {
+		return fmt.Errorf("field 'message' is empty or not a string")
+	}
+	return nil
+}
+
+func theResponseShouldContainNonEmptyAccessToken() error {
+	if testCtx.response == nil {
+		return fmt.Errorf("response is not a JSON object")
+	}
+	val, ok := testCtx.response["access_token"]
+	if !ok {
+		return fmt.Errorf("response does not contain field 'access_token'")
+	}
+	s, ok := val.(string)
+	if !ok || s == "" {
+		return fmt.Errorf("field 'access_token' is empty or not a string")
+	}
+	if len(s) < 20 {
+		return fmt.Errorf("field 'access_token' appears too short (%d chars), expected a valid JWT", len(s))
+	}
+	return nil
+}
+
+func theResponseShouldContainNonEmptyRefreshToken() error {
+	if testCtx.response == nil {
+		return fmt.Errorf("response is not a JSON object")
+	}
+	val, ok := testCtx.response["refresh_token"]
+	if !ok {
+		return fmt.Errorf("response does not contain field 'refresh_token'")
+	}
+	s, ok := val.(string)
+	if !ok || s == "" {
+		return fmt.Errorf("field 'refresh_token' is empty or not a string")
+	}
+	if len(s) < 8 {
+		return fmt.Errorf("field 'refresh_token' appears too short (%d chars)", len(s))
+	}
+	return nil
+}
+
+var sensitiveUserFields = []string{
+	"password_hash", "password", "passwordHash", "secret", "token",
+	"deleted_at", "updated_at", "last_seen_at",
+}
+
+var requiredUserFields = []string{"id", "username", "email", "role", "created_at"}
+
+func theResponseShouldContainStructuredUserWithoutSensitiveFields() error {
+	if testCtx.response == nil {
+		return fmt.Errorf("response is not a JSON object")
+	}
+	userVal, ok := testCtx.response["user"]
+	if !ok {
+		return fmt.Errorf("response does not contain field 'user'")
+	}
+	user, ok := userVal.(map[string]any)
+	if !ok {
+		return fmt.Errorf("field 'user' is not a JSON object, got %T", userVal)
+	}
+
+	// Check required fields
+	for _, field := range requiredUserFields {
+		if _, exists := user[field]; !exists {
+			return fmt.Errorf("user object missing required field '%s'", field)
+		}
+	}
+
+	// Check no sensitive fields
+	for _, field := range sensitiveUserFields {
+		if _, exists := user[field]; exists {
+			return fmt.Errorf("user object exposes sensitive field '%s'", field)
+		}
+	}
+
+	// Check id is non-empty
+	if id, _ := user["id"].(string); id == "" {
+		return fmt.Errorf("user.id is empty")
+	}
+
+	// Check username is non-empty
+	if username, _ := user["username"].(string); username == "" {
+		return fmt.Errorf("user.username is empty")
+	}
+
 	return nil
 }
 

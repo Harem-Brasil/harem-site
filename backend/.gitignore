@@ -1,5 +1,6 @@
-# Built binary
+# Built binaries
 ./harem-api
+harem-api
 
 # Air live-reload tmp
 tmp/

@@ -3,8 +3,7 @@
 ##
 ## Get latest from `dotnet new gitignore`
 
-# Go: binário acidental `go build -o api` na pasta backend
-backend/api
+# Go: binário acidental na pasta backend
 backend/api.exe
 
 # dotenv files
