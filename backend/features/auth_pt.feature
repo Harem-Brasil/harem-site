@@ -10,7 +10,7 @@ Funcionalidade: Endpoints de Autenticação
 
   Cenário: Registrar um novo usuário com sucesso
     Dado que eu tenho um payload de registro válido
-      | username | email             | password     |
+      | screen_name | email             | password     |
       | johndoe  | john@example.com  | SecurePass123! |
     Quando eu enviar uma requisição POST para "/api/v1/auth/register" com o payload
     Então o código de status da resposta deve ser 201
@@ -21,14 +21,14 @@ Funcionalidade: Endpoints de Autenticação
   Cenário: Registrar com email duplicado
     Dado que um usuário com email "existing@example.com" já existe
     Quando eu enviar uma requisição POST para "/api/v1/auth/register" com:
-      | username | email                | password     |
+      | screen_name | email                | password     |
       | johndoe  | existing@example.com | SecurePass123! |
     Então o código de status da resposta deve ser 409
     E a resposta deve conter "error" com valor "User already exists"
 
   Cenário: Registrar com email inválido
     Quando eu enviar uma requisição POST para "/api/v1/auth/register" com:
-      | username | email           | password     |
+      | screen_name | email           | password     |
       | johndoe  | invalid-email   | SecurePass123! |
     Então o código de status da resposta deve ser 400
     E a resposta deve conter erro de validação para "email"

@@ -12,7 +12,7 @@ Funcionalidade: Endpoints de Gerenciamento de Usuários
     Quando eu enviar uma requisição GET para "/api/v1/users/me"
     Então o código de status da resposta deve ser 200
     E a resposta deve conter "id"
-    E a resposta deve conter "username" com valor "johndoe"
+    E a resposta deve conter "screen_name" com valor "johndoe"
     E a resposta deve conter "email"
 
   Cenário: Atualizar meu perfil
@@ -40,11 +40,11 @@ Funcionalidade: Endpoints de Gerenciamento de Usuários
     E a resposta deve conter "next_cursor"
     E a resposta deve conter "has_more"
 
-  Cenário: Pesquisar usuários por username
+  Cenário: Pesquisar usuários por screen_name
     Quando eu enviar uma requisição GET para "/api/v1/users/search?q=john&limit=10"
     Então o código de status da resposta deve ser 200
     E a resposta deve conter "data"
-    E cada usuário nos resultados deve ter username contendo "john"
+    E cada usuário nos resultados deve ter screen_name contendo "john"
 
   Cenário: Obter posts do usuário
     Dado que um usuário com id "creator-123" existe
