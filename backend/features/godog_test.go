@@ -146,14 +146,14 @@ func theCacheIsConnected() error {
 	return nil
 }
 
-func iAmAuthenticatedAsUser(username string) error {
+func iAmAuthenticatedAsUser(screenName string) error {
 	// Create a test JWT token
-	testCtx.token = generateTestToken(username, "user")
+	testCtx.token = generateTestToken(screenName, "user")
 	return nil
 }
 
-func iAmAuthenticatedAsCreator(username string) error {
-	testCtx.token = generateTestToken(username, "creator")
+func iAmAuthenticatedAsCreator(screenName string) error {
+	testCtx.token = generateTestToken(screenName, "creator")
 	return nil
 }
 
@@ -164,12 +164,12 @@ func iAmNotAuthenticated() error {
 
 const testJWTSecret = "test-jwt-secret-that-is-long-enough-for-tests-32chars"
 
-func generateTestToken(username, role string) string {
+func generateTestToken(screenName, role string) string {
 	claims := jwt.MapClaims{
-		"sub":         username,
+		"sub":         screenName,
 		"roles":       []string{role},
-		"email":       username + "@test.local",
-		"screen_name": username,
+		"email":       screenName + "@test.local",
+		"screen_name": screenName,
 		"exp":         time.Now().Add(time.Hour).Unix(),
 		"iat":         time.Now().Unix(),
 		"iss":         "harem-api",
