@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"errors"
-	"net/mail"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,22 +15,9 @@ import (
 )
 
 func (s *Services) Register(ctx context.Context, req domain.RegisterRequest) (*domain.AuthResponse, error) {
-	validationErrors := make(map[string]string)
-	if req.Email == "" {
-		validationErrors["email"] = "Email is required"
-	} else if _, err := mail.ParseAddress(req.Email); err != nil {
-		validationErrors["email"] = "Invalid email format"
-	}
-	if req.Username == "" {
-		validationErrors["username"] = "Username is required"
-	}
-	if req.Password == "" {
-		validationErrors["password"] = "Password is required"
-	} else if msg := utils.ValidatePassword(req.Password); msg != "" {
-		validationErrors["password"] = msg
-	}
-	if len(validationErrors) > 0 {
-		return nil, domain.ErrValidation("One or more fields failed validation", validationErrors)
+	fieldErrors, ok := req.Validate()
+	if !ok {
+		return nil, domain.ErrValidation("One or more fields failed validation", fieldErrors)
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
@@ -86,19 +72,9 @@ func (s *Services) Register(ctx context.Context, req domain.RegisterRequest) (*d
 }
 
 func (s *Services) Login(ctx context.Context, req domain.LoginRequest) (*domain.AuthResponse, error) {
-	validationErrors := make(map[string]string)
-	if req.Email == "" {
-		validationErrors["email"] = "Email is required"
-	} else if _, err := mail.ParseAddress(req.Email); err != nil {
-		validationErrors["email"] = "Invalid email format"
-	}
-	if req.Password == "" {
-		validationErrors["password"] = "Password is required"
-	} else if msg := utils.ValidatePassword(req.Password); msg != "" {
-		validationErrors["password"] = msg
-	}
-	if len(validationErrors) > 0 {
-		return nil, domain.ErrValidation("One or more fields failed validation", validationErrors)
+	fieldErrors, ok := req.Validate()
+	if !ok {
+		return nil, domain.ErrValidation("One or more fields failed validation", fieldErrors)
 	}
 
 	var user struct {
