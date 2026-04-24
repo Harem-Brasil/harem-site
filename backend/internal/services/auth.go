@@ -15,6 +15,8 @@ import (
 	"github.com/harem-brasil/backend/internal/utils"
 )
 
+const refreshTokenExpiry = 7 * 24 * time.Hour
+
 // execer abstracts pgxpool.Pool and pgx.Tx so storeRefreshToken works with either.
 type execer interface {
 	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
@@ -32,7 +34,7 @@ func (s *Services) storeRefreshToken(ctx context.Context, exec execer, userID, t
 	if err != nil {
 		return err
 	}
-	refreshExpiry := time.Now().UTC().Add(7 * 24 * time.Hour)
+	refreshExpiry := time.Now().UTC().Add(refreshTokenExpiry)
 	_, err = exec.Exec(ctx,
 		`INSERT INTO refresh_tokens (id, user_id, token_id, token_hash, expires_at, last_used_at, ip_address, user_agent)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
@@ -171,6 +173,9 @@ func (s *Services) Refresh(ctx context.Context, req RefreshBody, meta *SessionMe
 	if !ok {
 		return nil, domain.Err(401, "Invalid refresh token format")
 	}
+	if _, err := uuid.Parse(tokenID); err != nil {
+		return nil, domain.Err(401, "Invalid refresh token format")
+	}
 
 	var session struct {
 		ID        string
@@ -235,12 +240,16 @@ func (s *Services) Refresh(ctx context.Context, req RefreshBody, meta *SessionMe
 	}
 	defer tx.Rollback(ctx)
 
-	_, err = tx.Exec(ctx,
-		`UPDATE refresh_tokens SET last_used_at = NOW(), revoked_at = NOW() WHERE id = $1`,
+	res, err := tx.Exec(ctx,
+		`UPDATE refresh_tokens SET last_used_at = NOW(), revoked_at = NOW() WHERE id = $1 AND revoked_at IS NULL`,
 		session.ID,
 	)
 	if err != nil {
 		return nil, domain.Err(500, "Failed to revoke old refresh token")
+	}
+
+	if res.RowsAffected() == 0 {
+		return nil, domain.Err(401, "Refresh token already used or revoked")
 	}
 
 	if err := s.storeRefreshToken(ctx, tx, user.ID, newTokenID, newSecret, meta); err != nil {
