@@ -6,8 +6,9 @@
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "harembrasil-frontend",
 	"main": "worker/index.ts",
-	"compatibility_date": "2026-04-24",
+	"compatibility_date": "2025-02-01",
 	"assets": {
+		"directory": "dist/client",
 		"not_found_handling": "single-page-application"
 	},
 	"observability": {

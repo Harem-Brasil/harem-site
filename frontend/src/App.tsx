@@ -5,7 +5,7 @@ function App() {
   }))
 
   return (
-    <div className="relative flex h-screen w-screen items-center justify-center overflow-hidden bg-black text-center">
+    <div className="relative flex h-dvh w-full items-center justify-center overflow-hidden bg-black text-center">
       {/* Animated background */}
       <div
         className="animate-move-bg absolute inset-0 z-0"

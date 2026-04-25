@@ -181,13 +181,12 @@ SERVICEFILE
     stage('Deploy Frontend') {
       when { expression { return env.CLOUDFLARE_API_TOKEN?.trim() } }
       steps {
+        unstash 'frontend-dist'
         dir('frontend') {
-          sh label: 'Install dependencies', script: 'npm ci'
           sh label: 'Deploy to Cloudflare', script: '''
             set -euo pipefail
             export CLOUDFLARE_API_TOKEN="${CLOUDFLARE_API_TOKEN}"
             export API_URL="${API_URL:-https://api.harembrasil.com.br}"
-            # Replace placeholder API_URL in wrangler config at deploy time
             npx wrangler deploy --var API_URL:"${API_URL}"
           '''
         }
