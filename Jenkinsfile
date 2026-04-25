@@ -22,6 +22,8 @@ pipeline {
     REDIS_URL       = credentials('harem-brasil-redis-url')
     JWT_SECRET      = credentials('harem-brasil-jwt-secret')
     STRIPE_SECRET_KEY = credentials('harem-brasil-stripe-secret-key')
+    CLOUDFLARE_API_TOKEN = credentials('truvis-co-cloudflare-api-token')
+    API_URL         = credentials('harem-brasil-api-url')
   }
 
   stages {
@@ -32,25 +34,44 @@ pipeline {
       }
     }
 
-    stage('Build') {
-      steps {
-        dir('backend') {
-          sh label: 'Go build', script: '''
-            set -euo pipefail
-            go version || true
-            export GOOS=linux
-            export GOARCH=amd64
-            export CGO_ENABLED=0
-            echo "Building for $GOOS/$GOARCH"
-            go build -ldflags="-s -w" -o harem-api-linux-amd64 ./cmd/api
-          '''
+    stage('Test & Build') {
+      parallel {
+        stage('Backend Build') {
+          steps {
+            dir('backend') {
+              sh label: 'Go build', script: '''
+                set -euo pipefail
+                go version || true
+                export GOOS=linux
+                export GOARCH=amd64
+                export CGO_ENABLED=0
+                echo "Building for $GOOS/$GOARCH"
+                go build -ldflags="-s -w" -o harem-api-linux-amd64 ./cmd/api
+              '''
+            }
+            sh '''
+              set -euo pipefail
+              mkdir -p artifacts
+              cp backend/harem-api-linux-amd64 artifacts/
+            '''
+            stash name: 'bin-amd64', includes: 'artifacts/harem-api-linux-amd64'
+          }
         }
-        sh '''
-          set -euo pipefail
-          mkdir -p artifacts
-          cp backend/harem-api-linux-amd64 artifacts/
-        '''
-        stash name: 'bin-amd64', includes: 'artifacts/harem-api-linux-amd64'
+        stage('Frontend Test & Build') {
+          steps {
+            dir('frontend') {
+              sh label: 'Install dependencies', script: 'npm ci'
+              sh label: 'Run tests', script: 'npm test'
+              sh label: 'Build frontend', script: 'npm run build'
+            }
+            sh '''
+              set -euo pipefail
+              mkdir -p artifacts
+              cp -r frontend/dist artifacts/frontend-dist
+            '''
+            stash name: 'frontend-dist', includes: 'artifacts/frontend-dist/**/*'
+          }
+        }
       }
     }
 
@@ -154,6 +175,21 @@ SERVICEFILE
   sudo systemctl is-active ${SERVICE_NAME}
 "
           '''
+      }
+    }
+
+    stage('Deploy Frontend') {
+      when { expression { return env.CLOUDFLARE_API_TOKEN?.trim() } }
+      steps {
+        unstash 'frontend-dist'
+        dir('frontend') {
+          sh label: 'Deploy to Cloudflare', script: '''
+            set -euo pipefail
+            export CLOUDFLARE_API_TOKEN="${CLOUDFLARE_API_TOKEN}"
+            export API_URL="${API_URL:-https://api.harembrasil.com.br}"
+            npx wrangler deploy --var API_URL:"${API_URL}"
+          '''
+        }
       }
     }
   }
