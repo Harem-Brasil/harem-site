@@ -504,65 +504,6 @@ func RegisterRoutes(engine *gin.Engine, svc *services.Services, jwtSecret []byte
 		})
 	}
 
-	creator := v1.Group("")
-	creator.Use(httpmw.MaxBodySize(1 << 20))
-	creator.Use(httpmw.GinAuth(jwtSecret, []string{"creator", "admin"}, logger))
-	{
-		creator.POST("/creator/apply", func(c *gin.Context) {
-			var req struct {
-				Bio         string   `json:"bio"`
-				SocialLinks []string `json:"social_links"`
-			}
-			if err := c.ShouldBindJSON(&req); err != nil {
-				utils.RespondProblem(c, http.StatusBadRequest, http.StatusText(http.StatusBadRequest), "Invalid JSON")
-				return
-			}
-			u := httpmw.MustUserClaims(c)
-			app, err := svc.CreatorApply(c.Request.Context(), u, req.Bio, req.SocialLinks)
-			if err != nil {
-				utils.HandleServiceError(c, logger, err)
-				return
-			}
-			utils.RespondJSON(c, http.StatusCreated, app)
-		})
-		creator.GET("/creator/dashboard", func(c *gin.Context) {
-			u := httpmw.MustUserClaims(c)
-			d, err := svc.CreatorDashboard(c.Request.Context(), u)
-			if err != nil {
-				utils.HandleServiceError(c, logger, err)
-				return
-			}
-			utils.RespondJSON(c, http.StatusOK, d)
-		})
-		creator.GET("/creator/earnings", func(c *gin.Context) {
-			u := httpmw.MustUserClaims(c)
-			data, err := svc.CreatorEarnings(c.Request.Context(), u)
-			if err != nil {
-				utils.HandleServiceError(c, logger, err)
-				return
-			}
-			utils.RespondJSON(c, http.StatusOK, data)
-		})
-		creator.GET("/creator/catalog", func(c *gin.Context) {
-			u := httpmw.MustUserClaims(c)
-			page, err := svc.CreatorCatalog(c.Request.Context(), u, c.Query("cursor"))
-			if err != nil {
-				utils.HandleServiceError(c, logger, err)
-				return
-			}
-			utils.RespondJSON(c, http.StatusOK, page)
-		})
-		creator.GET("/creator/orders", func(c *gin.Context) {
-			u := httpmw.MustUserClaims(c)
-			page, err := svc.CreatorOrders(c.Request.Context(), u, c.Query("cursor"))
-			if err != nil {
-				utils.HandleServiceError(c, logger, err)
-				return
-			}
-			utils.RespondJSON(c, http.StatusOK, page)
-		})
-	}
-
 	bill := v1.Group("")
 	bill.Use(httpmw.MaxBodySize(1 << 20))
 	bill.Use(httpmw.GinAuth(jwtSecret, []string{"user", "creator", "moderator", "admin"}, logger))

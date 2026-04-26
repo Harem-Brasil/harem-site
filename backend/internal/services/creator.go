@@ -10,27 +10,7 @@ import (
 	"github.com/harem-brasil/backend/internal/utils"
 )
 
-type creatorCatalogItem struct {
-	ID          string `json:"id"`
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	PriceCents  int    `json:"price_cents"`
-	Currency    string `json:"currency"`
-	Visibility  string `json:"visibility"`
-	CreatedAt   string `json:"created_at"`
-}
-
-type creatorOrderRow struct {
-	ID          string `json:"id"`
-	BuyerID     string `json:"buyer_id"`
-	ItemID      string `json:"item_id"`
-	Status      string `json:"status"`
-	AmountCents int    `json:"amount_cents"`
-	Currency    string `json:"currency"`
-	CreatedAt   string `json:"created_at"`
-}
-
-func (s *Services) CreatorApply(ctx context.Context, user *middleware.UserClaims, bio string, socialLinks []string) (*domain.CreatorApplication, error) {
+func (s *Services) PostCreatorApply(ctx context.Context, user *middleware.UserClaims, bio string, socialLinks []string) (*domain.CreatorApplication, error) {
 	appID := uuid.New().String()
 	now := time.Now().UTC()
 
@@ -53,7 +33,7 @@ func (s *Services) CreatorApply(ctx context.Context, user *middleware.UserClaims
 	}, nil
 }
 
-func (s *Services) CreatorDashboard(ctx context.Context, user *middleware.UserClaims) (*domain.CreatorDashboard, error) {
+func (s *Services) GetCreatorDashboard(ctx context.Context, user *middleware.UserClaims) (*domain.CreatorDashboard, error) {
 	var dashboard domain.CreatorDashboard
 
 	_ = s.DB.QueryRow(ctx,
@@ -69,14 +49,14 @@ func (s *Services) CreatorDashboard(ctx context.Context, user *middleware.UserCl
 	return &dashboard, nil
 }
 
-func (s *Services) CreatorEarnings(ctx context.Context, user *middleware.UserClaims) (map[string]any, error) {
+func (s *Services) GetCreatorEarnings(ctx context.Context, user *middleware.UserClaims) (map[string]any, error) {
 	return map[string]any{
 		"earnings": []any{},
 		"total":    0.0,
 	}, nil
 }
 
-func (s *Services) CreatorCatalog(ctx context.Context, user *middleware.UserClaims, cursor string) (*domain.CursorPage, error) {
+func (s *Services) GetCreatorCatalog(ctx context.Context, user *middleware.UserClaims, cursor string) (*domain.CursorPage, error) {
 	limit := 20
 
 	rows, err := s.DB.Query(ctx,
@@ -94,11 +74,13 @@ func (s *Services) CreatorCatalog(ctx context.Context, user *middleware.UserClai
 
 	var items []any
 	for rows.Next() {
-		var item creatorCatalogItem
-		err := rows.Scan(&item.ID, &item.Title, &item.Description, &item.PriceCents, &item.Currency, &item.Visibility, &item.CreatedAt)
+		var item domain.CreatorCatalogItem
+		var createdAt time.Time
+		err := rows.Scan(&item.ID, &item.Title, &item.Description, &item.PriceCents, &item.Currency, &item.Visibility, &createdAt)
 		if err != nil {
 			continue
 		}
+		item.CreatedAt = utils.FormatRFC3339UTC(createdAt)
 		items = append(items, item)
 	}
 
@@ -109,13 +91,13 @@ func (s *Services) CreatorCatalog(ctx context.Context, user *middleware.UserClai
 
 	nextCursor := ""
 	if hasMore && len(items) > 0 {
-		nextCursor = items[len(items)-1].(creatorCatalogItem).CreatedAt
+		nextCursor = items[len(items)-1].(domain.CreatorCatalogItem).CreatedAt
 	}
 
 	return &domain.CursorPage{Data: items, NextCursor: nextCursor, HasMore: hasMore}, nil
 }
 
-func (s *Services) CreatorOrders(ctx context.Context, user *middleware.UserClaims, cursor string) (*domain.CursorPage, error) {
+func (s *Services) GetCreatorOrders(ctx context.Context, user *middleware.UserClaims, cursor string) (*domain.CursorPage, error) {
 	limit := 20
 
 	rows, err := s.DB.Query(ctx,
@@ -133,11 +115,13 @@ func (s *Services) CreatorOrders(ctx context.Context, user *middleware.UserClaim
 
 	var orders []any
 	for rows.Next() {
-		var order creatorOrderRow
-		err := rows.Scan(&order.ID, &order.BuyerID, &order.ItemID, &order.Status, &order.AmountCents, &order.Currency, &order.CreatedAt)
+		var order domain.CreatorOrderRow
+		var createdAt time.Time
+		err := rows.Scan(&order.ID, &order.BuyerID, &order.ItemID, &order.Status, &order.AmountCents, &order.Currency, &createdAt)
 		if err != nil {
 			continue
 		}
+		order.CreatedAt = utils.FormatRFC3339UTC(createdAt)
 		orders = append(orders, order)
 	}
 
@@ -148,7 +132,7 @@ func (s *Services) CreatorOrders(ctx context.Context, user *middleware.UserClaim
 
 	nextCursor := ""
 	if hasMore && len(orders) > 0 {
-		nextCursor = orders[len(orders)-1].(creatorOrderRow).CreatedAt
+		nextCursor = orders[len(orders)-1].(domain.CreatorOrderRow).CreatedAt
 	}
 
 	return &domain.CursorPage{Data: orders, NextCursor: nextCursor, HasMore: hasMore}, nil
