@@ -76,7 +76,10 @@ pipeline {
             dir('frontend') {
               sh label: 'Install dependencies', script: 'npm ci'
               sh label: 'Run tests', script: 'npm test'
-              sh label: 'Build frontend', script: 'npm run build'
+              sh label: 'Build frontend', script: """
+                export VITE_APP_ENV="${env.GIT_BRANCH == 'main' ? 'production' : 'staging'}"
+                npm run build
+              """
             }
             sh '''
               set -euo pipefail
@@ -117,7 +120,7 @@ set -euo pipefail
 BIN_LOCAL="artifacts/harem-api-linux-amd64"
 
 # Criar arquivo .env localmente
-printf 'PORT=%s\nDATABASE_URL=%s\nREDIS_URL=%s\nJWT_SECRET=%s\nSTRIPE_SECRET_KEY=%s\n' \
+printf 'PORT=%s\nENV=staging\nDATABASE_URL=%s\nREDIS_URL=%s\nJWT_SECRET=%s\nSTRIPE_SECRET_KEY=%s\n' \
   "$STAGE_PORT" "$DATABASE_URL" "$REDIS_URL" "$JWT_SECRET" "$STRIPE_SECRET_KEY" > /tmp/harem-api-stage.env
 
 # Upload arquivos para /tmp no target
@@ -227,12 +230,21 @@ SERVICEFILE
 
           # Smoke tests: validar endpoints criticos
           echo "=== Health check ==="
-          curl -sf "${STAGE_API_URL}/health" | head -c 200 || true
+          curl -sf -D - "${STAGE_API_URL}/health" | head -c 200 || true
           echo ""
 
           echo "=== API info ==="
-          curl -sf "${STAGE_API_URL}/healthz" | head -c 200 || true
+          curl -sf -D - "${STAGE_API_URL}/healthz" | head -c 200 || true
           echo ""
+
+          echo "=== Validate X-Environment header ==="
+          ENV_HEADER=$(curl -sfI "${STAGE_API_URL}/health" | grep -i "X-Environment" || true)
+          if echo "$ENV_HEADER" | grep -qi "staging"; then
+            echo "OK: X-Environment: staging"
+          else
+            echo "WARN: X-Environment header missing or not 'staging'"
+            echo "$ENV_HEADER"
+          fi
 
           echo "=== Smoke test passed ==="
         '''
@@ -249,7 +261,7 @@ set -euo pipefail
 BIN_LOCAL="artifacts/harem-api-linux-amd64"
 
 # Criar arquivo .env localmente
-printf 'PORT=40080\nDATABASE_URL=%s\nREDIS_URL=%s\nJWT_SECRET=%s\nSTRIPE_SECRET_KEY=%s\n' \
+printf 'PORT=40080\nENV=production\nDATABASE_URL=%s\nREDIS_URL=%s\nJWT_SECRET=%s\nSTRIPE_SECRET_KEY=%s\n' \
   "$DATABASE_URL" "$REDIS_URL" "$JWT_SECRET" "$STRIPE_SECRET_KEY" > /tmp/harem-api.env
 
 # Upload arquivos para /tmp no target

@@ -67,7 +67,7 @@ func NewHTTPServer(ctx context.Context, cfg Config) (*HTTPServer, error) {
 		AllowOrigins:     corsOrigins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Accept", "Authorization", "Content-Type", "X-Request-Id", "Idempotency-Key", "If-Match"},
-		ExposeHeaders:    []string{"RateLimit-Limit", "RateLimit-Remaining", "RateLimit-Reset", "Retry-After"},
+		ExposeHeaders:    []string{"RateLimit-Limit", "RateLimit-Remaining", "RateLimit-Reset", "Retry-After", "X-Environment"},
 		AllowCredentials: true,
 		MaxAge:           300,
 	}))
@@ -75,6 +75,11 @@ func NewHTTPServer(ctx context.Context, cfg Config) (*HTTPServer, error) {
 
 	engine.Use(func(c *gin.Context) {
 		c.Header("Content-Type", "application/json; charset=utf-8")
+		env := cfg.AppEnv
+		if env == "" {
+			env = "development"
+		}
+		c.Header("X-Environment", env)
 		c.Next()
 	})
 
