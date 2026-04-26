@@ -14,6 +14,8 @@ import (
 
 	"github.com/harem-brasil/backend/internal/application"
 	"github.com/harem-brasil/backend/internal/migrate"
+	"github.com/harem-brasil/backend/internal/seed"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 )
 
@@ -27,6 +29,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "Commands:")
 		fmt.Fprintln(os.Stderr, "  serve    Start the API server")
 		fmt.Fprintln(os.Stderr, "  migrate  Run database migrations")
+		fmt.Fprintln(os.Stderr, "  seed     Seed database with test data")
 		os.Exit(1)
 	}
 
@@ -48,9 +51,11 @@ func main() {
 		runServe(logger, dbURL)
 	case "migrate":
 		runMigrate(dbURL)
+	case "seed":
+		runSeed(dbURL)
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command: %s\n", command)
-		fmt.Fprintln(os.Stderr, "Commands: serve, migrate")
+		fmt.Fprintln(os.Stderr, "Commands: serve, migrate, seed")
 		os.Exit(1)
 	}
 }
@@ -144,6 +149,29 @@ func runMigrate(dbURL string) {
 	}
 
 	slog.Info("migrations completed successfully")
+}
+
+func runSeed(dbURL string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	pool, err := pgxpool.New(ctx, dbURL)
+	if err != nil {
+		slog.Error("failed to connect to database", "error", err)
+		os.Exit(1)
+	}
+	defer pool.Close()
+
+	if err := pool.Ping(ctx); err != nil {
+		slog.Error("failed to ping database", "error", err)
+		os.Exit(1)
+	}
+
+	seeder := seed.New(pool)
+	if err := seeder.Run(ctx); err != nil {
+		slog.Error("seeding failed", "error", err)
+		os.Exit(1)
+	}
 }
 
 func getEnv(key, defaultValue string) string {
