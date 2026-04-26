@@ -19,7 +19,8 @@
 		"nodejs_compat"
 	],
 	"vars": {
-		"API_URL": "http://localhost:40080"
+		"API_URL": "http://localhost:40080",
+		"COMMIT_HASH": "local"
 	}
 	/**
 	 * Smart Placement

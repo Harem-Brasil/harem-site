@@ -1,5 +1,6 @@
 interface WorkerEnv {
   API_URL: string
+  COMMIT_HASH?: string
   ASSETS?: { fetch: typeof fetch }
 }
 
@@ -37,6 +38,9 @@ export default {
       headers: res.headers,
     });
     modified.headers.set('X-Environment', env.API_URL ? 'production' : 'development');
+    if (env.COMMIT_HASH) {
+      modified.headers.set('X-Commit-Hash', env.COMMIT_HASH);
+    }
     return modified;
   },
 } satisfies ExportedHandler<WorkerEnv>;

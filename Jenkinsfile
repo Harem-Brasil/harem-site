@@ -208,7 +208,8 @@ SERVICEFILE
             export CLOUDFLARE_API_TOKEN="${CLOUDFLARE_API_TOKEN}"
             npx wrangler deploy \
               --name "${FRONTEND_STAGE_NAME}" \
-              --var API_URL:"${STAGE_API_URL}"
+              --var API_URL:"${STAGE_API_URL}" \
+              --var COMMIT_HASH:"$(git rev-parse --short HEAD)"
           '''
         }
       }
@@ -349,7 +350,9 @@ SERVICEFILE
             set -euo pipefail
             export CLOUDFLARE_API_TOKEN="${CLOUDFLARE_API_TOKEN}"
             export API_URL="${API_URL:-https://api.harembrasil.com.br}"
-            npx wrangler deploy --var API_URL:"${API_URL}"
+            npx wrangler deploy \
+              --var API_URL:"${API_URL}" \
+              --var COMMIT_HASH:"$(git rev-parse --short HEAD)"
           '''
         }
       }
