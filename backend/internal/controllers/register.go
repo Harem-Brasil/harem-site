@@ -200,17 +200,18 @@ func RegisterRoutes(engine *gin.Engine, svc *services.Services, jwtSecret []byte
 			utils.RespondJSON(c, http.StatusOK, resp)
 		})
 		me.PATCH("/me", func(c *gin.Context) {
-			var updates map[string]any
-			if err := c.ShouldBindJSON(&updates); err != nil {
+			var req domain.PatchMeRequest
+			if err := c.ShouldBindJSON(&req); err != nil {
 				utils.RespondProblem(c, http.StatusBadRequest, http.StatusText(http.StatusBadRequest), "Invalid JSON")
 				return
 			}
 			u := httpmw.MustUserClaims(c)
-			if err := svc.UpdateMe(c.Request.Context(), u, updates); err != nil {
+			resp, err := svc.UpdateMe(c.Request.Context(), u, req)
+			if err != nil {
 				utils.HandleServiceError(c, logger, err)
 				return
 			}
-			c.Status(http.StatusNoContent)
+			utils.RespondJSON(c, http.StatusOK, resp)
 		})
 		me.DELETE("/me", func(c *gin.Context) {
 			u := httpmw.MustUserClaims(c)

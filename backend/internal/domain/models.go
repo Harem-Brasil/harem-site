@@ -132,6 +132,75 @@ type UserPublic struct {
 	CreatedAt  string `json:"created_at"`
 }
 
+// UserPrivate is the full profile returned by GET /me (no internal fields like password_hash).
+type UserPrivate struct {
+	ID                 string         `json:"id"`
+	ScreenName         string         `json:"screen_name"`
+	Email              string         `json:"email"`
+	Role               string         `json:"role"`
+	AvatarURL          string         `json:"avatar_url,omitempty"`
+	Bio                string         `json:"bio,omitempty"`
+	Locale             string         `json:"locale"`
+	NotifyPreferences  map[string]any `json:"notify_preferences"`
+	EmailVerifiedAt    *string        `json:"email_verified_at,omitempty"`
+	AcceptTermsVersion string         `json:"accept_terms_version,omitempty"`
+	CreatedAt          string         `json:"created_at"`
+	UpdatedAt          string         `json:"updated_at,omitempty"`
+}
+
+// PatchMeRequest is the whitelisted payload for PATCH /me (§6.3).
+// Only these fields may be updated by the authenticated user.
+type PatchMeRequest struct {
+	ScreenName        *string         `json:"screen_name,omitempty"`
+	Bio               *string         `json:"bio,omitempty"`
+	Locale            *string         `json:"locale,omitempty"`
+	NotifyPreferences *map[string]any `json:"notify_preferences,omitempty"`
+}
+
+// AllowedNotifyPrefKeys are the sub-keys permitted inside notify_preferences.
+var AllowedNotifyPrefKeys = map[string]bool{
+	"email": true,
+	"push":  true,
+}
+
+// Validate checks PatchMeRequest fields and returns field-specific errors.
+func (req *PatchMeRequest) Validate() (map[string]string, bool) {
+	errs := make(map[string]string)
+
+	if req.ScreenName != nil {
+		if msg := validateScreenName(*req.ScreenName); msg != "" {
+			errs["screen_name"] = msg
+		}
+	}
+	if req.Bio != nil {
+		if utf8.RuneCountInString(*req.Bio) > 512 {
+			errs["bio"] = "Bio must be at most 512 characters long"
+		}
+		if len(*req.Bio) > 4096 {
+			errs["bio"] = "Bio exceeds maximum byte length"
+		}
+	}
+	if req.Locale != nil {
+		if len(*req.Locale) > 16 {
+			errs["locale"] = "Locale must be at most 16 characters"
+		}
+	}
+	if req.NotifyPreferences != nil {
+		for k, v := range *req.NotifyPreferences {
+			if !AllowedNotifyPrefKeys[k] {
+				errs["notify_preferences"] = "Key '" + k + "' is not allowed in notify_preferences"
+				break
+			}
+			if _, ok := v.(bool); !ok {
+				errs["notify_preferences"] = "Value for key '" + k + "' must be a boolean"
+				break
+			}
+		}
+	}
+
+	return errs, len(errs) == 0
+}
+
 // --- Posts ---
 
 type PostResponse struct {

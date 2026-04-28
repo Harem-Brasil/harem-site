@@ -2,55 +2,144 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"strings"
 
 	"github.com/harem-brasil/backend/internal/domain"
 	"github.com/harem-brasil/backend/internal/middleware"
 	"github.com/harem-brasil/backend/internal/utils"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-func (s *Services) GetMe(ctx context.Context, claims *middleware.UserClaims) (*domain.UserPublic, error) {
+func (s *Services) GetMe(ctx context.Context, claims *middleware.UserClaims) (*domain.UserPrivate, error) {
 	var u struct {
-		ID         string
-		ScreenName string
-		Email      string
-		Role       string
-		Bio        pgtype.Text
-		AvatarURL  pgtype.Text
-		CreatedAt  pgtype.Timestamptz
+		ID                 string
+		ScreenName         string
+		Email              string
+		Role               string
+		Bio                pgtype.Text
+		AvatarURL          pgtype.Text
+		Locale             pgtype.Text
+		NotifyPreferences  []byte // jsonb
+		EmailVerifiedAt    pgtype.Timestamptz
+		AcceptTermsVersion pgtype.Text
+		CreatedAt          pgtype.Timestamptz
+		UpdatedAt          pgtype.Timestamptz
 	}
 
 	err := s.DB.QueryRow(ctx,
-		`SELECT id, screen_name, email, role, bio, avatar_url, created_at FROM users WHERE id = $1`,
+		`SELECT id, screen_name, email, role, bio, avatar_url,
+		        locale, notify_preferences,
+		        email_verified_at, accept_terms_version,
+		        created_at, updated_at
+		 FROM users WHERE id = $1`,
 		claims.UserID,
-	).Scan(&u.ID, &u.ScreenName, &u.Email, &u.Role, &u.Bio, &u.AvatarURL, &u.CreatedAt)
+	).Scan(&u.ID, &u.ScreenName, &u.Email, &u.Role, &u.Bio, &u.AvatarURL,
+		&u.Locale, &u.NotifyPreferences,
+		&u.EmailVerifiedAt, &u.AcceptTermsVersion,
+		&u.CreatedAt, &u.UpdatedAt)
 
 	if err != nil {
 		return nil, domain.Err(500, "Database error")
 	}
 
-	return &domain.UserPublic{
-		ID:         u.ID,
-		ScreenName: u.ScreenName,
-		Email:      u.Email,
-		Role:       u.Role,
-		Bio:        u.Bio.String,
-		AvatarURL:  u.AvatarURL.String,
-		CreatedAt:  utils.FormatRFC3339UTC(u.CreatedAt.Time),
+	locale := "pt-BR"
+	if u.Locale.Valid {
+		locale = u.Locale.String
+	}
+
+	var notifyPrefs map[string]any
+	if len(u.NotifyPreferences) > 0 {
+		if err := json.Unmarshal(u.NotifyPreferences, &notifyPrefs); err != nil {
+			if s.Logger != nil {
+				s.Logger.Error("malformed notify_preferences in DB", "user_id", u.ID, "error", err)
+			}
+		}
+	}
+	if notifyPrefs == nil {
+		notifyPrefs = map[string]any{"email": true, "push": true}
+	}
+
+	var emailVerifiedAt *string
+	if u.EmailVerifiedAt.Valid {
+		s := utils.FormatRFC3339UTC(u.EmailVerifiedAt.Time)
+		emailVerifiedAt = &s
+	}
+
+	return &domain.UserPrivate{
+		ID:                 u.ID,
+		ScreenName:         u.ScreenName,
+		Email:              u.Email,
+		Role:               u.Role,
+		Bio:                u.Bio.String,
+		AvatarURL:          u.AvatarURL.String,
+		Locale:             locale,
+		NotifyPreferences:  notifyPrefs,
+		EmailVerifiedAt:    emailVerifiedAt,
+		AcceptTermsVersion: u.AcceptTermsVersion.String,
+		CreatedAt:          utils.FormatRFC3339UTC(u.CreatedAt.Time),
+		UpdatedAt:          utils.FormatRFC3339UTC(u.UpdatedAt.Time),
 	}, nil
 }
 
-func (s *Services) UpdateMe(ctx context.Context, claims *middleware.UserClaims, updates map[string]any) error {
-	_, err := s.DB.Exec(ctx,
-		`UPDATE users SET screen_name = COALESCE($1, screen_name), bio = COALESCE($2, bio), updated_at = NOW() WHERE id = $3`,
-		updates["screen_name"], updates["bio"], claims.UserID,
-	)
-	if err != nil {
-		return domain.Err(500, "Failed to update user")
+func (s *Services) UpdateMe(ctx context.Context, claims *middleware.UserClaims, req domain.PatchMeRequest) (*domain.UserPrivate, error) {
+	if errs, ok := req.Validate(); !ok {
+		return nil, domain.ErrValidation("Validation failed", errs)
 	}
-	return nil
+
+	// Build dynamic SET clause from non-nil whitelisted fields
+	setClauses := []string{}
+	args := []any{}
+	argIdx := 1
+
+	if req.ScreenName != nil {
+		setClauses = append(setClauses, fmt.Sprintf("screen_name = $%d", argIdx))
+		args = append(args, *req.ScreenName)
+		argIdx++
+	}
+	if req.Bio != nil {
+		setClauses = append(setClauses, fmt.Sprintf("bio = $%d", argIdx))
+		args = append(args, *req.Bio)
+		argIdx++
+	}
+	if req.Locale != nil {
+		setClauses = append(setClauses, fmt.Sprintf("locale = $%d", argIdx))
+		args = append(args, *req.Locale)
+		argIdx++
+	}
+	if req.NotifyPreferences != nil {
+		jsonBytes, err := json.Marshal(*req.NotifyPreferences)
+		if err != nil {
+			return nil, domain.Err(400, "Invalid notify_preferences")
+		}
+		setClauses = append(setClauses, fmt.Sprintf("notify_preferences = $%d", argIdx))
+		args = append(args, jsonBytes)
+		argIdx++
+	}
+
+	if len(setClauses) == 0 {
+		// No fields to update — just return current profile
+		return s.GetMe(ctx, claims)
+	}
+
+	setClauses = append(setClauses, "updated_at = NOW()")
+	args = append(args, claims.UserID)
+
+	query := fmt.Sprintf("UPDATE users SET %s WHERE id = $%d", strings.Join(setClauses, ", "), argIdx)
+	_, err := s.DB.Exec(ctx, query, args...)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return nil, domain.Err(409, "Screen name already taken")
+		}
+		return nil, domain.Err(500, "Failed to update user")
+	}
+
+	return s.GetMe(ctx, claims)
 }
 
 func (s *Services) DeleteMe(ctx context.Context, claims *middleware.UserClaims) error {
