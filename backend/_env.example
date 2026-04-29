@@ -1,20 +1,37 @@
 # Harém Brasil API Configuration
-# Copy this file to .env and update values for your environment
+# Copy this file to .env and update values for your environment.
+# NEVER commit .env to the repository.
 
-# Server port (default: 40080)
+# ── Server ────────────────────────────────────────────────
 PORT=40080
+ENV=development
 
-# Database connection string
+# ── Database ──────────────────────────────────────────────
 # For Docker Compose (make compose-up):
 DATABASE_URL=postgres://harem:harem@localhost:5432/harem?sslmode=disable
 # For production:
 # DATABASE_URL=postgres://harem:password@db.example.com:5432/harem?sslmode=require
 
-# Redis connection string
+# ── Redis ─────────────────────────────────────────────────
 REDIS_URL=redis://localhost:6379/0
 
-# JWT secret - MUST be at least 32 characters in production
+# ── JWT ───────────────────────────────────────────────────
+# MUST be at least 32 characters in production
 JWT_SECRET=your-super-secret-jwt-key-change-in-production-min-32-chars
 
-# Environment (development, staging, production)
-ENV=development
+# ── Webhook Secrets ───────────────────────────────────────
+STRIPE_WEBHOOK_SECRET=
+PAGSEGURO_WEBHOOK_SECRET=
+MERCADOPAGO_WEBHOOK_SECRET=
+
+# ── OAuth: Google (HB-AUTH-05) ───────────────────────────
+# Required to enable Google Sign-In. Leave empty to disable.
+OAUTH_GOOGLE_CLIENT_ID=
+OAUTH_GOOGLE_CLIENT_SECRET=
+# Override only if using a custom/sandbox endpoint:
+OAUTH_GOOGLE_AUTHORIZE_URL=https://accounts.google.com/o/oauth2/v2/auth
+OAUTH_GOOGLE_TOKEN_URL=https://oauth2.googleapis.com/token
+OAUTH_GOOGLE_USERINFO_URL=https://openidconnect.googleapis.com/v1/userinfo
+OAUTH_GOOGLE_ISSUER_URL=https://accounts.google.com
+# Comma-separated list of allowed redirect URIs (leave empty in dev to accept all):
+OAUTH_GOOGLE_ALLOWED_REDIRECT_URIS=http://localhost:3000/api/v1/auth/oauth/google/callback,http://localhost:5173/api/v1/auth/oauth/google/callback

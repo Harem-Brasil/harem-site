@@ -139,6 +139,16 @@ func RegisterRoutes(engine *gin.Engine, svc *services.Services, jwtSecret []byte
 			code := c.Query("code")
 			redirectURI := c.Query("redirect_uri")
 
+			// Handle provider error response (e.g. user denied consent)
+			if oauthErr := c.Query("error"); oauthErr != "" {
+				detail := c.Query("error_description")
+				if detail == "" {
+					detail = oauthErr
+				}
+				utils.RespondProblem(c, http.StatusBadRequest, "OAuth provider error", detail)
+				return
+			}
+
 			// Validate state against cookie
 			cookieState, err := c.Cookie("oauth_state")
 			if err != nil || cookieState != state {

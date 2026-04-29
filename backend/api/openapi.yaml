@@ -206,7 +206,8 @@ paths:
       summary: Iniciar fluxo OAuth Authorization Code + PKCE
       description: |
         Redireciona o utilizador para o provider (ex. Google) com code_challenge S256.
-        O state é armazenado em cookie HttpOnly para proteção CSRF.
+        O state é armazenado em cookie HttpOnly para proteção CSRF; o nonce é validado server-side.
+        redirect_uri é validado contra allowlist configurada (OAUTH_GOOGLE_ALLOWED_REDIRECT_URIS).
         Parâmetro redirect_uri opcional (senão usa Referer).
       tags: [Autenticação]
       parameters:
@@ -253,9 +254,11 @@ paths:
       operationId: oauthCallback
       summary: Callback OAuth — troca code por tokens Harém
       description: |
-        Valida state (CSRF via cookie), troca authorization code por tokens no provider
-        via PKCE, busca userinfo, e cria/liga utilizador. Retorna AuthResponse.
+        Valida state (CSRF via cookie + nonce server-side), troca authorization code por tokens no provider
+        via PKCE, valida ID token (iss/aud/nonce) se presente (OIDC §3), busca userinfo,
+        e cria/liga utilizador. Retorna AuthResponse.
         Logs não contêm código de autorização nem access token do provider.
+        Se o provider retornar error em vez de code, responde 400 ProblemDetail.
       tags: [Autenticação]
       parameters:
         - name: provider
@@ -276,6 +279,16 @@ paths:
           schema:
             type: string
           description: Authorization code do provider
+        - name: error
+          in: query
+          schema:
+            type: string
+          description: Código de erro do provider (ex. access_denied) — se presente, code é ignorado
+        - name: error_description
+          in: query
+          schema:
+            type: string
+          description: Descrição legível do erro do provider
         - name: redirect_uri
           in: query
           schema:

@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS oauth_states (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     provider        TEXT NOT NULL,
     code_verifier   TEXT NOT NULL,          -- PKCE code_verifier (S256)
+    nonce           TEXT NOT NULL,          -- CSRF nonce (stateID.nonce → nonce validated server-side)
     redirect_uri    TEXT NOT NULL,          -- expected callback URL
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     expires_at      TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '10 minutes')

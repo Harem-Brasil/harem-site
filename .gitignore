@@ -9,6 +9,7 @@ backend/api.exe
 # dotenv files
 .env
 .env.*
+!_env.example
 
 # User-specific files
 *.rsuser

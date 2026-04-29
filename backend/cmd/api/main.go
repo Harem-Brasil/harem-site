@@ -192,12 +192,14 @@ func buildOAuthProviders() map[string]services.OAuthProviderConfig {
 
 	if id := os.Getenv("OAUTH_GOOGLE_CLIENT_ID"); id != "" {
 		providers["google"] = services.OAuthProviderConfig{
-			ClientID:     id,
-			ClientSecret: os.Getenv("OAUTH_GOOGLE_CLIENT_SECRET"),
-			AuthorizeURL: getEnv("OAUTH_GOOGLE_AUTHORIZE_URL", "https://accounts.google.com/o/oauth2/v2/auth"),
-			TokenURL:     getEnv("OAUTH_GOOGLE_TOKEN_URL", "https://oauth2.googleapis.com/token"),
-			UserInfoURL:  getEnv("OAUTH_GOOGLE_USERINFO_URL", "https://openidconnect.googleapis.com/v1/userinfo"),
-			Scopes:       []string{"openid", "email", "profile"},
+			ClientID:            id,
+			ClientSecret:        os.Getenv("OAUTH_GOOGLE_CLIENT_SECRET"),
+			AuthorizeURL:        getEnv("OAUTH_GOOGLE_AUTHORIZE_URL", "https://accounts.google.com/o/oauth2/v2/auth"),
+			TokenURL:            getEnv("OAUTH_GOOGLE_TOKEN_URL", "https://oauth2.googleapis.com/token"),
+			UserInfoURL:         getEnv("OAUTH_GOOGLE_USERINFO_URL", "https://openidconnect.googleapis.com/v1/userinfo"),
+			IssuerURL:           getEnv("OAUTH_GOOGLE_ISSUER_URL", "https://accounts.google.com"),
+			Scopes:              []string{"openid", "email", "profile"},
+			AllowedRedirectURIs: parseCommaSeparatedOrigins(os.Getenv("OAUTH_GOOGLE_ALLOWED_REDIRECT_URIS")),
 		}
 	}
 

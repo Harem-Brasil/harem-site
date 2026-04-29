@@ -33,5 +33,10 @@ type OAuthProviderConfig struct {
 	AuthorizeURL string // e.g. https://accounts.google.com/o/oauth2/v2/auth
 	TokenURL     string // e.g. https://oauth2.googleapis.com/token
 	UserInfoURL  string // e.g. https://openidconnect.googleapis.com/v1/userinfo
+	IssuerURL    string // e.g. https://accounts.google.com — validated against ID token iss claim
 	Scopes       []string
+
+	// AllowedRedirectURIs is an allowlist of permitted redirect_uri values.
+	// If empty, all URIs are accepted (useful for development only).
+	AllowedRedirectURIs []string
 }

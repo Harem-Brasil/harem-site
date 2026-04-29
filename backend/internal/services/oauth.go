@@ -51,6 +51,11 @@ func (s *Services) OAuthAuthorize(ctx context.Context, provider string, redirect
 		return nil, domain.Err(400, fmt.Sprintf("Unsupported OAuth provider: %s", provider))
 	}
 
+	// Validate redirect_uri against allowlist
+	if err := validateRedirectURI(cfg, redirectURI); err != nil {
+		return nil, domain.Err(400, err.Error())
+	}
+
 	// Generate PKCE code_verifier (43-128 chars, RFC 7636)
 	codeVerifier, err := generateCodeVerifier()
 	if err != nil {
@@ -58,17 +63,17 @@ func (s *Services) OAuthAuthorize(ctx context.Context, provider string, redirect
 	}
 
 	// Generate state nonce (CSRF protection)
-	state, err := generateState()
+	nonce, err := generateState()
 	if err != nil {
 		return nil, domain.Err(500, "Failed to generate state")
 	}
 
-	// Store state + code_verifier in DB
+	// Store state + code_verifier + nonce in DB
 	stateID := uuid.New().String()
 	_, err = s.DB.Exec(ctx,
-		`INSERT INTO oauth_states (id, provider, code_verifier, redirect_uri, created_at, expires_at)
-		 VALUES ($1, $2, $3, $4, NOW(), NOW() + INTERVAL '10 minutes')`,
-		stateID, provider, codeVerifier, redirectURI,
+		`INSERT INTO oauth_states (id, provider, code_verifier, nonce, redirect_uri, created_at, expires_at)
+		 VALUES ($1, $2, $3, $4, $5, NOW(), NOW() + INTERVAL '10 minutes')`,
+		stateID, provider, codeVerifier, nonce, redirectURI,
 	)
 	if err != nil {
 		return nil, domain.Err(500, "Failed to store OAuth state")
@@ -83,7 +88,7 @@ func (s *Services) OAuthAuthorize(ctx context.Context, provider string, redirect
 	params.Set("redirect_uri", redirectURI)
 	params.Set("response_type", "code")
 	params.Set("scope", strings.Join(cfg.Scopes, " "))
-	params.Set("state", stateID+"."+state) // stateID for DB lookup + nonce for CSRF
+	params.Set("state", stateID+"."+nonce) // stateID for DB lookup + nonce for CSRF
 	params.Set("code_challenge", codeChallenge)
 	params.Set("code_challenge_method", "S256")
 
@@ -91,7 +96,7 @@ func (s *Services) OAuthAuthorize(ctx context.Context, provider string, redirect
 
 	return &OAuthAuthorizeResult{
 		AuthorizeURL: authorizeURL,
-		State:        stateID + "." + state,
+		State:        stateID + "." + nonce,
 	}, nil
 }
 
@@ -108,19 +113,20 @@ func (s *Services) OAuthCallback(ctx context.Context, provider, stateParam, code
 	if len(parts) != 2 {
 		return nil, domain.Err(400, "Invalid state parameter")
 	}
-	stateID, _ := parts[0], parts[1]
+	stateID, nonce := parts[0], parts[1]
 
 	// Look up state in DB
 	var stored struct {
 		Provider     string
 		CodeVerifier string
+		Nonce        string
 		RedirectURI  string
 		ExpiresAt    time.Time
 	}
 	err := s.DB.QueryRow(ctx,
-		`SELECT provider, code_verifier, redirect_uri, expires_at FROM oauth_states WHERE id = $1`,
+		`SELECT provider, code_verifier, nonce, redirect_uri, expires_at FROM oauth_states WHERE id = $1`,
 		stateID,
-	).Scan(&stored.Provider, &stored.CodeVerifier, &stored.RedirectURI, &stored.ExpiresAt)
+	).Scan(&stored.Provider, &stored.CodeVerifier, &stored.Nonce, &stored.RedirectURI, &stored.ExpiresAt)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -136,6 +142,9 @@ func (s *Services) OAuthCallback(ctx context.Context, provider, stateParam, code
 	if stored.Provider != provider {
 		return nil, domain.Err(400, "State provider mismatch")
 	}
+	if stored.Nonce != nonce {
+		return nil, domain.Err(400, "State nonce mismatch")
+	}
 	if stored.RedirectURI != redirectURI {
 		return nil, domain.Err(400, "State redirect_uri mismatch")
 	}
@@ -150,6 +159,16 @@ func (s *Services) OAuthCallback(ctx context.Context, provider, stateParam, code
 			s.Logger.Error("OAuth token exchange failed", "provider", provider, "error", err)
 		}
 		return nil, domain.Err(502, "Failed to exchange authorization code")
+	}
+
+	// Validate ID token claims (iss, aud) if an ID token was returned (OIDC §3)
+	if tokenResp.IDToken != "" {
+		if err := validateIDToken(tokenResp.IDToken, cfg, stored.Nonce); err != nil {
+			if s.Logger != nil {
+				s.Logger.Error("OAuth ID token validation failed", "provider", provider, "error", err)
+			}
+			return nil, domain.Err(400, "ID token validation failed")
+		}
 	}
 
 	// Fetch user info from provider
@@ -437,4 +456,100 @@ func fetchUserInfo(ctx context.Context, cfg OAuthProviderConfig, accessToken str
 	}
 
 	return info, nil
+}
+
+// --- Redirect URI allowlist ---
+
+// validateRedirectURI checks that the redirect_uri is in the provider's allowlist.
+// If the allowlist is empty (development), all URIs are accepted.
+func validateRedirectURI(cfg OAuthProviderConfig, redirectURI string) error {
+	if redirectURI == "" {
+		return fmt.Errorf("redirect_uri is required")
+	}
+	if len(cfg.AllowedRedirectURIs) == 0 {
+		return nil // no allowlist configured — accept all (dev mode)
+	}
+	for _, allowed := range cfg.AllowedRedirectURIs {
+		if redirectURI == allowed {
+			return nil
+		}
+	}
+	return fmt.Errorf("redirect_uri not allowed: %s", redirectURI)
+}
+
+// --- OIDC ID token validation ---
+
+// idTokenClaims represents the OIDC claims we validate from an ID token.
+type idTokenClaims struct {
+	Iss   string `json:"iss"`   // issuer — must match cfg.IssuerURL
+	Aud   string `json:"aud"`   // audience — must match cfg.ClientID (single-audience check)
+	Sub   string `json:"sub"`   // subject identifier
+	Nonce string `json:"nonce"` // must match the nonce stored in oauth_states
+	Exp   int64  `json:"exp"`   // expiry — must not be in the past
+}
+
+// validateIDToken performs lightweight validation of an OIDC ID token.
+// It decodes the JWT payload (unverified signature — signature verification
+// requires JWKS fetching which is deferred to a future iteration) and checks:
+//   - iss matches the configured IssuerURL
+//   - aud matches the configured ClientID
+//   - nonce matches the nonce from the authorize request
+//   - exp is not in the past
+func validateIDToken(idToken string, cfg OAuthProviderConfig, expectedNonce string) error {
+	// JWT format: header.payload.signature — we only need the payload
+	parts := strings.SplitN(idToken, ".", 3)
+	if len(parts) != 3 {
+		return fmt.Errorf("malformed ID token: expected 3 parts, got %d", len(parts))
+	}
+
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return fmt.Errorf("failed to decode ID token payload: %w", err)
+	}
+
+	var claims idTokenClaims
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return fmt.Errorf("failed to parse ID token claims: %w", err)
+	}
+
+	// Validate iss (OIDC §3.1.3.7 — step 2)
+	if cfg.IssuerURL != "" && claims.Iss != cfg.IssuerURL {
+		return fmt.Errorf("ID token iss %q does not match expected %q", claims.Iss, cfg.IssuerURL)
+	}
+
+	// Validate aud (OIDC §3.1.3.7 — step 3)
+	if claims.Aud != cfg.ClientID {
+		return fmt.Errorf("ID token aud %q does not match expected %q", claims.Aud, cfg.ClientID)
+	}
+
+	// Validate nonce (OIDC §3.1.3.7 — step 11)
+	if expectedNonce != "" && claims.Nonce != expectedNonce {
+		return fmt.Errorf("ID token nonce does not match")
+	}
+
+	// Validate exp (OIDC §3.1.3.7 — step 9)
+	if claims.Exp > 0 && time.Now().Unix() > claims.Exp {
+		return fmt.Errorf("ID token expired")
+	}
+
+	return nil
+}
+
+// --- Expired state cleanup ---
+
+// CleanupExpiredOAuthStates removes expired rows from oauth_states.
+// Call this periodically (e.g. via cron or on server idle) to prevent table bloat.
+func (s *Services) CleanupExpiredOAuthStates(ctx context.Context) (int64, error) {
+	tag, err := s.DB.Exec(ctx, `DELETE FROM oauth_states WHERE expires_at < NOW()`)
+	if err != nil {
+		if s.Logger != nil {
+			s.Logger.Error("failed to cleanup expired oauth_states", "error", err)
+		}
+		return 0, domain.Err(500, "Failed to cleanup expired OAuth states")
+	}
+	deleted := tag.RowsAffected()
+	if s.Logger != nil {
+		s.Logger.Info("cleaned up expired oauth_states", "deleted", deleted)
+	}
+	return deleted, nil
 }
