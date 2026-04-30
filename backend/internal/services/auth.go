@@ -410,6 +410,26 @@ func (s *Services) LogoutAll(ctx context.Context, user *middleware.UserClaims) e
 	return nil
 }
 
+// CleanupExpiredRefreshTokens removes revoked refresh tokens whose expires_at
+// has passed. Call periodically (e.g. via cron) to prevent table bloat.
+// Leverages idx_refresh_tokens_cleanup (expires_at WHERE revoked_at IS NOT NULL).
+func (s *Services) CleanupExpiredRefreshTokens(ctx context.Context) (int64, error) {
+	tag, err := s.DB.Exec(ctx,
+		`DELETE FROM refresh_tokens WHERE revoked_at IS NOT NULL AND expires_at < NOW()`,
+	)
+	if err != nil {
+		if s.Logger != nil {
+			s.Logger.Error("failed to cleanup expired refresh_tokens", "error", err)
+		}
+		return 0, domain.Err(500, "Failed to cleanup expired refresh tokens")
+	}
+	deleted := tag.RowsAffected()
+	if s.Logger != nil {
+		s.Logger.Info("cleaned up expired refresh_tokens", "deleted", deleted)
+	}
+	return deleted, nil
+}
+
 func (s *Services) EmailVerify(ctx context.Context) error {
 	return domain.Err(501, "Email verification not yet implemented")
 }
@@ -423,8 +443,15 @@ func (s *Services) PasswordReset(ctx context.Context) error {
 }
 
 // sha256Hash returns the hex-encoded SHA-256 hash of the input.
-// Used for refresh token secrets which are already high-entropy crypto-random values,
-// so bcrypt is unnecessary overhead — SHA-256 provides equivalent security.
+//
+// ADR: SHA-256 vs Argon2id/bcrypt for refresh token secrets (§3).
+// The spec recommends Argon2id/bcrypt for stored secrets. However, the refresh
+// token secret is a 32-byte crypto-random value (generateSecureSecret), not a
+// user-chosen password. For high-entropy inputs, key-stretching hashes provide
+// no additional security against brute-force — the search space (2^256) is
+// already infeasible. SHA-256 is the standard approach per RFC 7009 §2.1 and
+// is used by major OAuth2 implementations. Passwords continue to use bcrypt
+// (bcryptCost = 12) as they are low-entropy user input.
 func sha256Hash(input string) string {
 	h := sha256.Sum256([]byte(input))
 	return hex.EncodeToString(h[:])
