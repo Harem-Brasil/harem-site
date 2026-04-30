@@ -46,5 +46,7 @@ CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token_lookup
     ON refresh_tokens(token_id) WHERE revoked_at IS NULL;
 
 -- Cleanup candidates: all expired tokens (optional periodic DELETE)
+-- NOTE: cannot use partial index with NOW() (not IMMUTABLE per SQLSTATE 42P17),
+-- so a regular index on expires_at supports the DELETE range scan.
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_cleanup
-    ON refresh_tokens(expires_at) WHERE expires_at < NOW();
+    ON refresh_tokens(expires_at);
