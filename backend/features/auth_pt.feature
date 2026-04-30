@@ -67,8 +67,8 @@ Funcionalidade: Endpoints de Autenticação
   Cenário: Atualizar token de acesso
     Dado que eu tenho um refresh token válido
     Quando eu enviar uma requisição POST para "/api/v1/auth/refresh" com:
-      | refresh_token          |
-      | valid-refresh-token    |
+      | refresh_token                              |
+      | 00000000-0000-0000-0000-000000000000.secret |
     Então o código de status da resposta deve ser 200
     E a resposta deve conter "access_token" não vazio
     E a resposta deve conter "refresh_token" não vazio
@@ -76,12 +76,12 @@ Funcionalidade: Endpoints de Autenticação
   Cenário: Logout da sessão atual
     Dado que eu estou autenticado como usuário "johndoe"
     Quando eu enviar uma requisição POST para "/api/v1/auth/logout"
-    Então o código de status da resposta deve ser 200
+    Então o código de status da resposta deve ser 204
 
   Cenário: Logout de todas as sessões
     Dado que eu estou autenticado como usuário "johndoe"
     Quando eu enviar uma requisição POST para "/api/v1/auth/logout-all"
-    Então o código de status da resposta deve ser 200
+    Então o código de status da resposta deve ser 204
 
   Cenário: Solicitar reset de senha
     Dado que um usuário registrado com email "user@example.com"
