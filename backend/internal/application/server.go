@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"net/http"
+	"strings"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -77,7 +78,14 @@ func NewHTTPServer(ctx context.Context, cfg Config) (*HTTPServer, error) {
 	}))
 	engine.Use(httpmw.GinRateLimit(rdb, cfg.Logger))
 
+	controllers.RegisterDocsRoutes(engine, cfg.Logger)
+
 	engine.Use(func(c *gin.Context) {
+		p := c.Request.URL.Path
+		if p == "/openapi.yaml" || p == "/docs" || strings.HasPrefix(p, "/docs/") {
+			c.Next()
+			return
+		}
 		c.Header("Content-Type", "application/json; charset=utf-8")
 		c.Next()
 	})
