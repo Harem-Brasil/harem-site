@@ -18,6 +18,8 @@ type Dependencies struct {
 	StripeWebhookSecret      string
 	PagSeguroWebhookSecret   string
 	MercadoPagoWebhookSecret string
+	// InternalBillingSecret protege callbacks internos (fila/worker → marcar pedido pago). Vazio em dev/test pode ser aceite só em ValidateInternalBillingSecret.
+	InternalBillingSecret string
 	// AppEnv replica ENV (ex.: development, test, production); usado quando o segredo do webhook está vazio.
 	AppEnv string
 }

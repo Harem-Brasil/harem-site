@@ -139,47 +139,6 @@ func (s *Services) GetCreatorCatalog(ctx context.Context, user *middleware.UserC
 	return &domain.CursorPage{Data: items, NextCursor: nextCursor, HasMore: hasMore}, nil
 }
 
-func (s *Services) GetCreatorOrders(ctx context.Context, user *middleware.UserClaims, cursor string) (*domain.CursorPage, error) {
-	limit := 20
-
-	rows, err := s.DB.Query(ctx,
-		`SELECT id, buyer_id, item_id, status, amount_cents, currency, created_at 
-		 FROM creator_orders 
-		 WHERE creator_id = $1::uuid
-		 AND ($2::text = '' OR created_at < $2::timestamptz)
-		 ORDER BY created_at DESC LIMIT $3`,
-		user.UserID, cursor, limit+1,
-	)
-	if err != nil {
-		return nil, domain.Err(500, "Database error")
-	}
-	defer rows.Close()
-
-	var orders []any
-	for rows.Next() {
-		var order domain.CreatorOrderRow
-		var createdAt time.Time
-		err := rows.Scan(&order.ID, &order.BuyerID, &order.ItemID, &order.Status, &order.AmountCents, &order.Currency, &createdAt)
-		if err != nil {
-			continue
-		}
-		order.CreatedAt = utils.FormatRFC3339UTC(createdAt)
-		orders = append(orders, order)
-	}
-
-	hasMore := len(orders) > limit
-	if hasMore {
-		orders = orders[:limit]
-	}
-
-	nextCursor := ""
-	if hasMore && len(orders) > 0 {
-		nextCursor = orders[len(orders)-1].(domain.CreatorOrderRow).CreatedAt
-	}
-
-	return &domain.CursorPage{Data: orders, NextCursor: nextCursor, HasMore: hasMore}, nil
-}
-
 // PatchCreatorProfile atualiza a bio pública do criador em users e, se existir candidatura,
 // mantém creator_applications.bio alinhado (mesma transação).
 func (s *Services) PatchCreatorProfile(ctx context.Context, user *middleware.UserClaims, bio string) error {

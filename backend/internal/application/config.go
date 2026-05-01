@@ -24,5 +24,6 @@ type Config struct {
 	StripeWebhookSecret      string
 	PagSeguroWebhookSecret   string
 	MercadoPagoWebhookSecret string
+	InternalBillingSecret    string
 	AppEnv                   string
 }

@@ -216,6 +216,11 @@ func RegisterRoutes(engine *gin.Engine, svc *services.Services, jwtSecret []byte
 			}
 			c.Status(http.StatusNoContent)
 		})
+		me.POST("/me/catalog-orders", postMeCatalogOrder(svc, logger))
+		me.GET("/me/catalog-orders", getMeCatalogOrders(svc, logger))
+		me.GET("/me/catalog-orders/:order_id", getCatalogOrderByID(svc, logger))
+		me.POST("/me/catalog-orders/:order_id/checkout", postMeCatalogOrderCheckout(svc, logger))
+		me.POST("/me/catalog-orders/:order_id/cancel", postMeCatalogOrderCancel(svc, logger))
 	}
 
 	u10 := v1.Group("")
@@ -661,6 +666,13 @@ func RegisterRoutes(engine *gin.Engine, svc *services.Services, jwtSecret []byte
 			}
 			utils.RespondJSON(c, http.StatusOK, page)
 		})
+	}
+
+	internalBilling := v1.Group("/internal/billing")
+	internalBilling.Use(httpmw.MaxBodySize(64 << 10))
+	internalBilling.Use(InternalBillingSecretMiddleware(svc, logger))
+	{
+		internalBilling.POST("/catalog-orders/:order_id/paid", postInternalBillingCatalogOrderPaid(svc, logger))
 	}
 
 	wh := v1.Group("")

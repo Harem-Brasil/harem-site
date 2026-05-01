@@ -17,6 +17,9 @@
 # UUID do utilizador alvo para PATCH role (ex.: {{login.response.body.$.user.id}} após login do utilizador a promover)
 @targetUserId = 00000000-0000-0000-0000-000000000000
 
+# Segredo para POST /internal/billing/* (env INTERNAL_BILLING_SECRET). Em ENV development/test sem segredo na API, o callback pode funcionar sem header.
+@internalBillingSecret = troque-pelo-segredo-interno
+
 ###############################################################################
 ### Infra (sem auth)
 ###############################################################################
@@ -119,6 +122,36 @@ Authorization: Bearer {{login.response.body.$.access_token}}
 ### Apagar a minha conta (cuidado)
 DELETE {{baseUrl}}/api/v1/me
 Authorization: Bearer {{login.response.body.$.access_token}}
+
+### Pedido de catálogo — criar (comprador; estado inicial requested)
+# @name createCatalogOrder
+POST {{baseUrl}}/api/v1/me/catalog-orders
+Content-Type: application/json
+Authorization: Bearer {{login.response.body.$.access_token}}
+
+{
+  "item_id": "{{createCatalogItem.response.body.$.id}}"
+}
+
+### Pedido de catálogo — listar os meus
+GET {{baseUrl}}/api/v1/me/catalog-orders?cursor=
+Authorization: Bearer {{login.response.body.$.access_token}}
+Accept: application/json
+
+### Pedido de catálogo — detalhe (comprador ou criador do item; admin vê todos)
+GET {{baseUrl}}/api/v1/me/catalog-orders/{{createCatalogOrder.response.body.$.id}}
+Authorization: Bearer {{login.response.body.$.access_token}}
+Accept: application/json
+
+### Pedido de catálogo — iniciar checkout (requested → awaiting_payment)
+POST {{baseUrl}}/api/v1/me/catalog-orders/{{createCatalogOrder.response.body.$.id}}/checkout
+Authorization: Bearer {{login.response.body.$.access_token}}
+Accept: application/json
+
+### Pedido de catálogo — cancelar (requested ou awaiting_payment → canceled)
+POST {{baseUrl}}/api/v1/me/catalog-orders/{{createCatalogOrder.response.body.$.id}}/cancel
+Authorization: Bearer {{login.response.body.$.access_token}}
+Accept: application/json
 
 ###############################################################################
 ### Utilizadores
@@ -446,10 +479,24 @@ Authorization: Bearer {{login.response.body.$.access_token}}
 DELETE {{baseUrl}}/api/v1/creator/catalog/{{createCatalogItem.response.body.$.id}}
 Authorization: Bearer {{login.response.body.$.access_token}}
 
-### Pedidos (somente leitura — pedidos nascem do fluxo de compra; não há POST dedicado nesta API)
+### Pedidos dos meus itens (lista)
 GET {{baseUrl}}/api/v1/creator/orders?cursor=
 Authorization: Bearer {{login.response.body.$.access_token}}
 Accept: application/json
+
+### Pedidos — marcar cumprido (paid → fulfilled)
+POST {{baseUrl}}/api/v1/creator/orders/{{createCatalogOrder.response.body.$.id}}/fulfill
+Authorization: Bearer {{login.response.body.$.access_token}}
+Accept: application/json
+
+### Callback interno billing — marcar pago (awaiting_payment → paid). Segredo: INTERNAL_BILLING_SECRET / header X-Internal-Billing-Secret
+POST {{baseUrl}}/api/v1/internal/billing/catalog-orders/{{createCatalogOrder.response.body.$.id}}/paid
+Content-Type: application/json
+X-Internal-Billing-Secret: {{internalBillingSecret}}
+
+{
+  "payment_ref": "psp_charge_or_intent_id_unique"
+}
 
 ### Editar bio (perfil público)
 PATCH {{baseUrl}}/api/v1/creator/profile

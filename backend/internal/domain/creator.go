@@ -65,10 +65,12 @@ type CreatorCatalogPatchRequest struct {
 
 type CreatorOrderRow struct {
 	ID          string `json:"id"`
+	CreatorID   string `json:"creator_id,omitempty"`
 	BuyerID     string `json:"buyer_id"`
 	ItemID      string `json:"item_id"`
 	Status      string `json:"status"`
 	AmountCents int    `json:"amount_cents"`
 	Currency    string `json:"currency"`
 	CreatedAt   string `json:"created_at"`
+	UpdatedAt   string `json:"updated_at"`
 }

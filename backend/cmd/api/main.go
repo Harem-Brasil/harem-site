@@ -82,6 +82,7 @@ func runServe(logger *slog.Logger, dbURL string) {
 		StripeWebhookSecret:      getEnv("STRIPE_WEBHOOK_SECRET", ""),
 		PagSeguroWebhookSecret:   getEnv("PAGSEGURO_WEBHOOK_SECRET", ""),
 		MercadoPagoWebhookSecret: getEnv("MERCADOPAGO_WEBHOOK_SECRET", ""),
+		InternalBillingSecret:    getEnv("INTERNAL_BILLING_SECRET", ""),
 		AppEnv:                   getEnv("ENV", ""),
 	})
 	if err != nil {

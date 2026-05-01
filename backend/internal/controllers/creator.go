@@ -54,6 +54,7 @@ func CreatorRoutes(engine *gin.Engine, svc *services.Services, jwtSecret []byte,
 		creator.PATCH("/creator/catalog/:item_id", patchCreatorCatalogItem(svc, logger))
 		creator.DELETE("/creator/catalog/:item_id", deleteCreatorCatalogItem(svc, logger))
 		creator.GET("/creator/orders", getCreatorOrders(svc, logger))
+		creator.POST("/creator/orders/:order_id/fulfill", postCreatorFulfillOrder(svc, logger))
 		creator.PATCH("/creator/profile", patchCreatorProfile(svc, logger))
 	}
 }
