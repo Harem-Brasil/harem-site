@@ -119,7 +119,7 @@ pipeline {
             if [ "${GIT_BRANCH}" = "main" ]; then
               export DATABASE_URL="${DATABASE_URL}"
               export REDIS_URL="${REDIS_URL}"
-              export JWT_SECRET="***"
+              export JWT_SECRET="${JWT_SECRET}"
               export STRIPE_SECRET_KEY="${STRIPE_SECRET_KEY}"
             else
               export DATABASE_URL="${STAGE_DATABASE_URL}"
@@ -144,7 +144,7 @@ BIN_LOCAL="artifacts/harem-api-linux-amd64"
 
 # Criar arquivo .env localmente
 COMMIT=$(git rev-parse --short HEAD)
-printf 'PORT=%s\\nENV=staging\\nCOMMIT_HASH=%s\\nDATABASE_URL=%s\\nREDIS_URL=%s\\nJWT_SECRET=%s\\nSTRIPE_SECRET_KEY=%s\\n' \\
+printf 'PORT=%s\nENV=staging\nCOMMIT_HASH=%s\nDATABASE_URL=%s\nREDIS_URL=%s\nJWT_SECRET=%s\nSTRIPE_SECRET_KEY=%s\n' \
   "$STAGE_PORT" "$COMMIT" "$STAGE_DATABASE_URL" "$STAGE_REDIS_URL" "$STAGE_JWT_SECRET" "$STAGE_STRIPE_SECRET_KEY" > /tmp/harem-api-stage.env
 
 # Upload arquivos para /tmp no target
@@ -212,6 +212,7 @@ SERVICEFILE
   sudo journalctl -u ${STAGE_SERVICE_NAME} --no-pager -n 50
   sudo systemctl is-active ${STAGE_SERVICE_NAME}
 "
+        '''
       }
     }
 
@@ -228,10 +229,10 @@ SERVICEFILE
           sh label: 'Deploy frontend to staging (Cloudflare)', script: '''
             set -euo pipefail
             export CLOUDFLARE_API_TOKEN="${CLOUDFLARE_API_TOKEN}"
-            npx wrangler deploy \\
-              --name "${FRONTEND_STAGE_NAME}" \\
-              --var API_URL:"${STAGE_API_URL}" \\
-              --var APP_ENV:"staging" \\
+            npx wrangler deploy \
+              --name "${FRONTEND_STAGE_NAME}" \
+              --var API_URL:"${STAGE_API_URL}" \
+              --var APP_ENV:"staging" \
               --var COMMIT_HASH:"$(git rev-parse --short HEAD)"
           '''
         }
@@ -287,7 +288,7 @@ BIN_LOCAL="artifacts/harem-api-linux-amd64"
 
 # Criar arquivo .env localmente
 COMMIT=$(git rev-parse --short HEAD)
-printf 'PORT=%s\\nENV=temp\\nCOMMIT_HASH=%s\\nDATABASE_URL=%s\\nREDIS_URL=%s\\nJWT_SECRET=%s\\nSTRIPE_SECRET_KEY=%s\\n' \\
+printf 'PORT=%s\nENV=temp\nCOMMIT_HASH=%s\nDATABASE_URL=%s\nREDIS_URL=%s\nJWT_SECRET=%s\nSTRIPE_SECRET_KEY=%s\n' \
   "$TEMP_PORT" "$COMMIT" "$STAGE_DATABASE_URL" "$STAGE_REDIS_URL" "$STAGE_JWT_SECRET" "$STAGE_STRIPE_SECRET_KEY" > /tmp/harem-api-temp.env
 
 # Upload arquivos para /tmp no target
@@ -355,6 +356,7 @@ SERVICEFILE
   sudo journalctl -u ${TEMP_SERVICE_NAME} --no-pager -n 50
   sudo systemctl is-active ${TEMP_SERVICE_NAME}
 "
+        '''
       }
     }
 
@@ -371,10 +373,10 @@ SERVICEFILE
           sh label: 'Deploy frontend to temp (Cloudflare)', script: '''
             set -euo pipefail
             export CLOUDFLARE_API_TOKEN="${CLOUDFLARE_API_TOKEN}"
-            npx wrangler deploy \\
-              --name "${FRONTEND_TEMP_NAME}" \\
-              --var API_URL:"${TEMP_API_URL}" \\
-              --var APP_ENV:"temp" \\
+            npx wrangler deploy \
+              --name "${FRONTEND_TEMP_NAME}" \
+              --var API_URL:"${TEMP_API_URL}" \
+              --var APP_ENV:"temp" \
               --var COMMIT_HASH:"$(git rev-parse --short HEAD)"
           '''
         }
@@ -430,7 +432,7 @@ BIN_LOCAL="artifacts/harem-api-linux-amd64"
 
 # Criar arquivo .env localmente
 COMMIT=$(git rev-parse --short HEAD)
-printf 'PORT=40080\\nENV=production\\nCOMMIT_HASH=%s\\nDATABASE_URL=%s\\nREDIS_URL=%s\\nJWT_SECRET=%s\\nSTRIPE_SECRET_KEY=%s\\n' \\
+printf 'PORT=40080\nENV=production\nCOMMIT_HASH=%s\nDATABASE_URL=%s\nREDIS_URL=%s\nJWT_SECRET=%s\nSTRIPE_SECRET_KEY=%s\n' \
   "$COMMIT" "$DATABASE_URL" "$REDIS_URL" "$JWT_SECRET" "$STRIPE_SECRET_KEY" > /tmp/harem-api.env
 
 # Upload arquivos para /tmp no target
@@ -498,6 +500,7 @@ SERVICEFILE
   sudo journalctl -u ${SERVICE_NAME} --no-pager -n 50
   sudo systemctl is-active ${SERVICE_NAME}
 "
+        '''
       }
     }
 
@@ -515,9 +518,9 @@ SERVICEFILE
             set -euo pipefail
             export CLOUDFLARE_API_TOKEN="${CLOUDFLARE_API_TOKEN}"
             export API_URL="${API_URL:-https://api.harembrasil.com.br}"
-            npx wrangler deploy \\
-              --var API_URL:"${API_URL}" \\
-              --var APP_ENV:"production" \\
+            npx wrangler deploy \
+              --var API_URL:"${API_URL}" \
+              --var APP_ENV:"production" \
               --var COMMIT_HASH:"$(git rev-parse --short HEAD)"
           '''
         }
