@@ -11,8 +11,8 @@ Funcionalidade: Endpoints de Criador
   Cenário: Aplicar para se tornar criador
     Dado que eu estou autenticado como usuário "regularuser"
     Quando eu enviar uma requisição POST para "/api/v1/creator/apply" com:
-      | bio                        | social_links                    |
-      | Criador de conteúdo profissional | https://twitter.com/sarah       |
+      | bio                        | social_links                         |
+      | Criador de conteúdo profissional | ["https://twitter.com/sarah"] |
     Então o código de status da resposta deve ser 201
     E a resposta deve conter "id"
     E a resposta deve conter "status" com valor "pending"
@@ -57,7 +57,21 @@ Funcionalidade: Endpoints de Criador
     E cada pedido deve conter "status"
     E cada pedido deve conter "amount_cents"
 
+  Cenário: Editar bio do criador
+    Quando eu enviar uma requisição PATCH para "/api/v1/creator/profile" com:
+      | bio                              |
+      | Nova bio do criador para o Harém |
+    Então o código de status da resposta deve ser 200
+    E a resposta deve conter "bio" com valor "Nova bio do criador para o Harém"
+
   Cenário: Apenas criadores podem acessar endpoints de criador
     Dado que eu estou autenticado como usuário "regularuser"
     Quando eu enviar uma requisição GET para "/api/v1/creator/dashboard"
+    Então o código de status da resposta deve ser 403
+
+  Cenário: Usuário comum não pode editar bio pelo endpoint de criador
+    Dado que eu estou autenticado como usuário "regularuser"
+    Quando eu enviar uma requisição PATCH para "/api/v1/creator/profile" com:
+      | bio       |
+      | Tentativa |
     Então o código de status da resposta deve ser 403

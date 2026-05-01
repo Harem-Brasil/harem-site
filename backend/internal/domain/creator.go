@@ -17,6 +17,11 @@ type CreatorApplyRequest struct {
 	SocialLinks []string `json:"social_links" binding:"omitempty,max=20,dive,max=500"`
 }
 
+// CreatorProfilePatchRequest atualização parcial do perfil do criador (whitelist explícita).
+type CreatorProfilePatchRequest struct {
+	Bio string `json:"bio" binding:"required,max=5000"`
+}
+
 type CreatorDashboard struct {
 	TotalPosts      int     `json:"total_posts"`
 	TotalLikes      int     `json:"total_likes"`

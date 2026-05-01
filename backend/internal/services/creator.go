@@ -2,24 +2,60 @@ package services
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"net/http"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/harem-brasil/backend/internal/domain"
 	"github.com/harem-brasil/backend/internal/middleware"
 	"github.com/harem-brasil/backend/internal/utils"
 )
 
 func (s *Services) PostCreatorApply(ctx context.Context, user *middleware.UserClaims, bio string, socialLinks []string) (*domain.CreatorApplication, error) {
+	var existingID string
+	err := s.DB.QueryRow(ctx,
+		`SELECT id FROM creator_applications WHERE user_id = $1 LIMIT 1`,
+		user.UserID,
+	).Scan(&existingID)
+	if err == nil {
+		if s.Logger != nil {
+			s.Logger.Info("creator apply rejected: already submitted", "user_id", user.UserID)
+		}
+		return nil, domain.Err(http.StatusConflict, "Creator application already submitted")
+	}
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, domain.Err(500, "Database error")
+	}
+
 	appID := uuid.New().String()
 	now := time.Now().UTC()
 
-	_, err := s.DB.Exec(ctx,
+	links := socialLinks
+	if links == nil {
+		links = []string{}
+	}
+	socialLinksJSON, err := json.Marshal(links)
+	if err != nil {
+		return nil, domain.Err(500, "Failed to submit application")
+	}
+
+	_, err = s.DB.Exec(ctx,
 		`INSERT INTO creator_applications (id, user_id, bio, social_links, status, submitted_at) 
-		 VALUES ($1, $2, $3, $4, 'pending', $5)`,
-		appID, user.UserID, bio, socialLinks, now,
+		 VALUES ($1, $2, $3, $4::jsonb, 'pending', $5)`,
+		appID, user.UserID, bio, socialLinksJSON, now,
 	)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			if s.Logger != nil {
+				s.Logger.Info("creator apply rejected: duplicate insert race", "user_id", user.UserID)
+			}
+			return nil, domain.Err(http.StatusConflict, "Creator application already submitted")
+		}
 		return nil, domain.Err(500, "Failed to submit application")
 	}
 
@@ -62,8 +98,8 @@ func (s *Services) GetCreatorCatalog(ctx context.Context, user *middleware.UserC
 	rows, err := s.DB.Query(ctx,
 		`SELECT id, title, description, price_cents, currency, visibility, created_at 
 		 FROM creator_catalog 
-		 WHERE creator_id = $1 AND deleted_at IS NULL
-		 AND ($2 = '' OR created_at < $2)
+		 WHERE creator_id = $1::uuid AND deleted_at IS NULL
+		 AND ($2::text = '' OR created_at < $2::timestamptz)
 		 ORDER BY created_at DESC LIMIT $3`,
 		user.UserID, cursor, limit+1,
 	)
@@ -103,8 +139,8 @@ func (s *Services) GetCreatorOrders(ctx context.Context, user *middleware.UserCl
 	rows, err := s.DB.Query(ctx,
 		`SELECT id, buyer_id, item_id, status, amount_cents, currency, created_at 
 		 FROM creator_orders 
-		 WHERE creator_id = $1
-		 AND ($2 = '' OR created_at < $2)
+		 WHERE creator_id = $1::uuid
+		 AND ($2::text = '' OR created_at < $2::timestamptz)
 		 ORDER BY created_at DESC LIMIT $3`,
 		user.UserID, cursor, limit+1,
 	)
@@ -136,4 +172,40 @@ func (s *Services) GetCreatorOrders(ctx context.Context, user *middleware.UserCl
 	}
 
 	return &domain.CursorPage{Data: orders, NextCursor: nextCursor, HasMore: hasMore}, nil
+}
+
+// PatchCreatorProfile atualiza a bio pública do criador em users e, se existir candidatura,
+// mantém creator_applications.bio alinhado (mesma transação).
+func (s *Services) PatchCreatorProfile(ctx context.Context, user *middleware.UserClaims, bio string) error {
+	tx, err := s.DB.Begin(ctx)
+	if err != nil {
+		return domain.Err(500, "Failed to update profile")
+	}
+	defer tx.Rollback(ctx)
+
+	tag, err := tx.Exec(ctx,
+		`UPDATE users SET bio = $1, updated_at = NOW() WHERE id = $2 AND deleted_at IS NULL`,
+		bio, user.UserID,
+	)
+	if err != nil {
+		return domain.Err(500, "Failed to update profile")
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.Err(http.StatusNotFound, "User not found")
+	}
+
+	if _, err := tx.Exec(ctx,
+		`UPDATE creator_applications SET bio = $1 WHERE user_id = $2`,
+		bio, user.UserID,
+	); err != nil {
+		return domain.Err(500, "Failed to update profile")
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return domain.Err(500, "Failed to update profile")
+	}
+	if s.Logger != nil {
+		s.Logger.Info("creator profile bio updated", "user_id", user.UserID)
+	}
+	return nil
 }

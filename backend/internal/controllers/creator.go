@@ -3,6 +3,8 @@ package controllers
 import (
 	"log/slog"
 	"net/http"
+	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
@@ -14,6 +16,25 @@ import (
 )
 
 const maxCursorQueryLen = 80
+
+// validateCreatorPaginationCursor aceita instantes no formato da própria API (RFC3339 com Z ou offset)
+// e também data/hora sem fuso (ex.: 2006-01-02T15:04:05), comum ao colar manualmente.
+func validateCreatorPaginationCursor(cur string) bool {
+	if cur == "" {
+		return true
+	}
+	layouts := []string{
+		time.RFC3339,
+		time.RFC3339Nano,
+		"2006-01-02T15:04:05",
+	}
+	for _, layout := range layouts {
+		if _, err := time.Parse(layout, cur); err == nil {
+			return true
+		}
+	}
+	return false
+}
 
 // CreatorRoutes monta /creator/* no grupo v1 (/api/v1/...). Papéis: creator, admin.
 // Um rate limit global por IP já é aplicado em server.go; não duplicar aqui.
@@ -29,6 +50,7 @@ func CreatorRoutes(engine *gin.Engine, svc *services.Services, jwtSecret []byte,
 		creator.GET("/creator/earnings", getCreatorEarnings(svc, logger))
 		creator.GET("/creator/catalog", getCreatorCatalog(svc, logger))
 		creator.GET("/creator/orders", getCreatorOrders(svc, logger))
+		creator.PATCH("/creator/profile", patchCreatorProfile(svc, logger))
 	}
 }
 
@@ -80,6 +102,10 @@ func getCreatorCatalog(svc *services.Services, logger *slog.Logger) gin.HandlerF
 			utils.RespondProblem(c, http.StatusBadRequest, http.StatusText(http.StatusBadRequest), "cursor too long")
 			return
 		}
+		if !validateCreatorPaginationCursor(cur) {
+			utils.RespondProblem(c, http.StatusBadRequest, http.StatusText(http.StatusBadRequest), "invalid cursor (use empty for first page or next_cursor / RFC3339 datetime)")
+			return
+		}
 		u := httpmw.MustUserClaims(c)
 		page, err := svc.GetCreatorCatalog(c.Request.Context(), u, cur)
 		if err != nil {
@@ -97,6 +123,10 @@ func getCreatorOrders(svc *services.Services, logger *slog.Logger) gin.HandlerFu
 			utils.RespondProblem(c, http.StatusBadRequest, http.StatusText(http.StatusBadRequest), "cursor too long")
 			return
 		}
+		if !validateCreatorPaginationCursor(cur) {
+			utils.RespondProblem(c, http.StatusBadRequest, http.StatusText(http.StatusBadRequest), "invalid cursor (use empty for first page or next_cursor / RFC3339 datetime)")
+			return
+		}
 		u := httpmw.MustUserClaims(c)
 		page, err := svc.GetCreatorOrders(c.Request.Context(), u, cur)
 		if err != nil {
@@ -104,5 +134,29 @@ func getCreatorOrders(svc *services.Services, logger *slog.Logger) gin.HandlerFu
 			return
 		}
 		utils.RespondJSON(c, http.StatusOK, page)
+	}
+}
+
+func patchCreatorProfile(svc *services.Services, logger *slog.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req domain.CreatorProfilePatchRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			if logger != nil {
+				logger.Warn("creator profile patch validation failed", "path", c.FullPath())
+			}
+			utils.RespondProblem(c, http.StatusBadRequest, http.StatusText(http.StatusBadRequest), "Invalid JSON")
+			return
+		}
+		bio := strings.TrimSpace(req.Bio)
+		if bio == "" {
+			utils.RespondProblem(c, http.StatusBadRequest, http.StatusText(http.StatusBadRequest), "bio cannot be empty")
+			return
+		}
+		u := httpmw.MustUserClaims(c)
+		if err := svc.PatchCreatorProfile(c.Request.Context(), u, bio); err != nil {
+			utils.HandleServiceError(c, logger, err)
+			return
+		}
+		utils.RespondJSON(c, http.StatusOK, gin.H{"bio": bio})
 	}
 }

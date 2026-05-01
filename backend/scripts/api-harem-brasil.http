@@ -1,0 +1,470 @@
+# Coleção Harém Brasil — VS Code REST Client (extensão "REST Client")
+# Postman / Insomnia (JSON): api-harem-brasil.postman_collection.json (mesmas rotas; gerar com scripts/gen-postman-collection.mjs)
+# Fluxo: envie primeiro «Login» (ou «Registo»); os pedidos autenticados referem-se à resposta «login».
+# Depois de «Refresh», pode usar Authorization: Bearer {{refresh.response.body.$.access_token}} nesse pedido em diante.
+# Documentação variáveis: https://github.com/Huachao/vscode-restclient#request-variables
+
+@baseUrl = http://localhost:40080
+@email = teste.criador@exemplo.com
+@password = SenhaForte!1
+@screenName = TesteCriador
+@termsVersion = 1.0
+
+# Conta admin (opcional — para rotas /admin/*). Ajuste na BD ou use seed.
+@adminEmail = admin@exemplo.com
+@adminPassword = TroquePorSenhaAdmin
+
+# UUID do utilizador alvo para PATCH role (ex.: {{login.response.body.$.user.id}} após login do utilizador a promover)
+@targetUserId = 00000000-0000-0000-0000-000000000000
+
+###############################################################################
+### Infra (sem auth)
+###############################################################################
+
+### Health
+GET {{baseUrl}}/health
+Accept: application/json
+
+### Healthz (checks)
+GET {{baseUrl}}/healthz
+Accept: application/json
+
+### Readyz
+GET {{baseUrl}}/readyz
+Accept: application/json
+
+### Versão da API
+GET {{baseUrl}}/version
+Accept: application/json
+
+###############################################################################
+### Auth público
+###############################################################################
+
+### Registo — devolve access_token (pode usar como fonte alternativa ao login)
+# @name register
+POST {{baseUrl}}/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "screen_name": "{{screenName}}",
+  "password": "{{password}}",
+  "accept_terms_version": "{{termsVersion}}"
+}
+
+### Login — use este pedido antes dos que exigem Bearer (resposta guardada como «login»)
+# @name login
+POST {{baseUrl}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+### Refresh — encadeia refresh_token do login
+# @name refresh
+POST {{baseUrl}}/api/v1/auth/refresh
+Content-Type: application/json
+
+{
+  "refresh_token": "{{login.response.body.$.refresh_token}}"
+}
+
+### Logout (revoga refresh do login)
+POST {{baseUrl}}/api/v1/auth/logout
+Content-Type: application/json
+
+{
+  "refresh_token": "{{login.response.body.$.refresh_token}}"
+}
+
+### Password forgot (público)
+POST {{baseUrl}}/api/v1/auth/password/forgot
+Content-Type: application/json
+
+{
+  "email": "{{email}}"
+}
+
+###############################################################################
+### Auth autenticado — access_token do «login» (ou do «refresh» se tiver sido o último enviado)
+###############################################################################
+
+### Logout em todos os dispositivos
+POST {{baseUrl}}/api/v1/auth/logout-all
+Authorization: Bearer {{login.response.body.$.access_token}}
+Accept: application/json
+
+###############################################################################
+### Perfil (utilizador)
+###############################################################################
+
+### Eu (perfil)
+GET {{baseUrl}}/api/v1/me
+Authorization: Bearer {{login.response.body.$.access_token}}
+Accept: application/json
+
+### Atualizar perfil (ex.: screen_name, bio)
+PATCH {{baseUrl}}/api/v1/me
+Content-Type: application/json
+Authorization: Bearer {{login.response.body.$.access_token}}
+
+{
+  "screen_name": "{{screenName}}",
+  "bio": "Bio de teste via REST Client"
+}
+
+### Apagar a minha conta (cuidado)
+DELETE {{baseUrl}}/api/v1/me
+Authorization: Bearer {{login.response.body.$.access_token}}
+
+###############################################################################
+### Utilizadores
+###############################################################################
+
+### Listar utilizadores
+GET {{baseUrl}}/api/v1/users
+Authorization: Bearer {{login.response.body.$.access_token}}
+Accept: application/json
+
+### Pesquisar utilizadores
+GET {{baseUrl}}/api/v1/users/search?q=teste&cursor=
+Authorization: Bearer {{login.response.body.$.access_token}}
+Accept: application/json
+
+### Utilizador por ID
+GET {{baseUrl}}/api/v1/users/{{login.response.body.$.user.id}}
+Authorization: Bearer {{login.response.body.$.access_token}}
+Accept: application/json
+
+### Posts de um utilizador
+GET {{baseUrl}}/api/v1/users/{{login.response.body.$.user.id}}/posts?cursor=
+Authorization: Bearer {{login.response.body.$.access_token}}
+Accept: application/json
+
+###############################################################################
+### Posts & feed
+###############################################################################
+
+### Listar posts
+GET {{baseUrl}}/api/v1/posts?cursor=
+Authorization: Bearer {{login.response.body.$.access_token}}
+Accept: application/json
+
+### Criar post
+# @name createPost
+POST {{baseUrl}}/api/v1/posts
+Content-Type: application/json
+Authorization: Bearer {{login.response.body.$.access_token}}
+
+{
+  "content": "Olá, este é um post de teste.",
+  "media_urls": [],
+  "visibility": "public"
+}
+
+### Obter post criado acima (requer pedido «Criar post» já enviado nesta sessão)
+GET {{baseUrl}}/api/v1/posts/{{createPost.response.body.$.id}}
+Authorization: Bearer {{login.response.body.$.access_token}}
+Accept: application/json
+
+### Obter post por ID manual
+GET {{baseUrl}}/api/v1/posts/POST_ID_AQUI
+Authorization: Bearer {{login.response.body.$.access_token}}
+Accept: application/json
+
+### Feed home
+GET {{baseUrl}}/api/v1/feed/home?cursor=
+Authorization: Bearer {{login.response.body.$.access_token}}
+Accept: application/json
+
+### Atualizar post
+PATCH {{baseUrl}}/api/v1/posts/POST_ID_AQUI
+Content-Type: application/json
+Authorization: Bearer {{login.response.body.$.access_token}}
+
+{
+  "content": "Conteúdo atualizado"
+}
+
+### Apagar post
+DELETE {{baseUrl}}/api/v1/posts/POST_ID_AQUI
+Authorization: Bearer {{login.response.body.$.access_token}}
+
+### Like num post
+POST {{baseUrl}}/api/v1/posts/POST_ID_AQUI/like
+Authorization: Bearer {{login.response.body.$.access_token}}
+
+### Unlike
+DELETE {{baseUrl}}/api/v1/posts/POST_ID_AQUI/like
+Authorization: Bearer {{login.response.body.$.access_token}}
+
+### Comentários do post
+GET {{baseUrl}}/api/v1/posts/POST_ID_AQUI/comments?cursor=
+Authorization: Bearer {{login.response.body.$.access_token}}
+Accept: application/json
+
+### Criar comentário
+POST {{baseUrl}}/api/v1/posts/POST_ID_AQUI/comments
+Content-Type: application/json
+Authorization: Bearer {{login.response.body.$.access_token}}
+
+{
+  "content": "Comentário de teste"
+}
+
+###############################################################################
+### Fórum
+###############################################################################
+
+### Categorias
+GET {{baseUrl}}/api/v1/forum/categories
+Authorization: Bearer {{login.response.body.$.access_token}}
+Accept: application/json
+
+### Tópicos
+GET {{baseUrl}}/api/v1/forum/topics?cursor=
+Authorization: Bearer {{login.response.body.$.access_token}}
+Accept: application/json
+
+### Criar tópico (ajuste category_id conforme API /forum/categories)
+POST {{baseUrl}}/api/v1/forum/topics
+Content-Type: application/json
+Authorization: Bearer {{login.response.body.$.access_token}}
+
+{
+  "category_id": "00000000-0000-4000-8000-000000000001",
+  "title": "Tópico de teste",
+  "content": "Corpo do tópico"
+}
+
+### Tópico por ID
+GET {{baseUrl}}/api/v1/forum/topics/TOPIC_ID
+Authorization: Bearer {{login.response.body.$.access_token}}
+Accept: application/json
+
+### Resposta num tópico
+POST {{baseUrl}}/api/v1/forum/topics/TOPIC_ID/posts
+Content-Type: application/json
+Authorization: Bearer {{login.response.body.$.access_token}}
+
+{
+  "content": "Mensagem no fórum"
+}
+
+###############################################################################
+### Chat
+###############################################################################
+
+### Salas
+GET {{baseUrl}}/api/v1/chat/rooms
+Authorization: Bearer {{login.response.body.$.access_token}}
+Accept: application/json
+
+### Criar sala
+POST {{baseUrl}}/api/v1/chat/rooms
+Content-Type: application/json
+Authorization: Bearer {{login.response.body.$.access_token}}
+
+{
+  "name": "Sala teste",
+  "type": "public",
+  "description": "Teste REST Client"
+}
+
+### Sala por ID
+GET {{baseUrl}}/api/v1/chat/rooms/ROOM_ID
+Authorization: Bearer {{login.response.body.$.access_token}}
+Accept: application/json
+
+### Mensagens da sala
+GET {{baseUrl}}/api/v1/chat/rooms/ROOM_ID/messages?cursor=
+Authorization: Bearer {{login.response.body.$.access_token}}
+Accept: application/json
+
+### Entrar na sala
+POST {{baseUrl}}/api/v1/chat/rooms/ROOM_ID/join
+Authorization: Bearer {{login.response.body.$.access_token}}
+
+###############################################################################
+### Notificações
+###############################################################################
+
+### Listar notificações
+GET {{baseUrl}}/api/v1/notifications?cursor=
+Authorization: Bearer {{login.response.body.$.access_token}}
+Accept: application/json
+
+### Apenas não lidas
+GET {{baseUrl}}/api/v1/notifications?unread=true&cursor=
+Authorization: Bearer {{login.response.body.$.access_token}}
+Accept: application/json
+
+### Contagem não lidas
+GET {{baseUrl}}/api/v1/notifications/unread-count
+Authorization: Bearer {{login.response.body.$.access_token}}
+Accept: application/json
+
+### Marcar como lida
+PATCH {{baseUrl}}/api/v1/notifications/NOTIF_ID/read
+Authorization: Bearer {{login.response.body.$.access_token}}
+
+###############################################################################
+### Billing / subscrições
+###############################################################################
+
+### Planos
+GET {{baseUrl}}/api/v1/billing/plans
+Authorization: Bearer {{login.response.body.$.access_token}}
+Accept: application/json
+
+### Subscrição atual
+GET {{baseUrl}}/api/v1/billing/subscription
+Authorization: Bearer {{login.response.body.$.access_token}}
+Accept: application/json
+
+### Subscrição (alternativa)
+GET {{baseUrl}}/api/v1/subscriptions/me
+Authorization: Bearer {{login.response.body.$.access_token}}
+Accept: application/json
+
+### Checkout (corpo: apenas plan_id)
+POST {{baseUrl}}/api/v1/billing/checkout
+Content-Type: application/json
+Authorization: Bearer {{login.response.body.$.access_token}}
+
+{
+  "plan_id": "SUBSTITUA_UUID_PLANO_ATIVO"
+}
+
+### Criar subscrição (pendente pagamento)
+POST {{baseUrl}}/api/v1/subscriptions
+Content-Type: application/json
+Authorization: Bearer {{login.response.body.$.access_token}}
+
+{
+  "plan_id": "SUBSTITUA_UUID_PLANO_ATIVO"
+}
+
+### Cancelar subscrição
+POST {{baseUrl}}/api/v1/billing/subscription/cancel
+Authorization: Bearer {{login.response.body.$.access_token}}
+
+### Retomar subscrição
+POST {{baseUrl}}/api/v1/billing/subscription/resume
+Authorization: Bearer {{login.response.body.$.access_token}}
+
+###############################################################################
+### Media
+###############################################################################
+
+### Criar sessão de upload
+POST {{baseUrl}}/api/v1/media/upload-sessions
+Content-Type: application/json
+Authorization: Bearer {{login.response.body.$.access_token}}
+
+{
+  "file_name": "test.jpg",
+  "content_type": "image/jpeg",
+  "size": 1024
+}
+
+### Completar upload
+POST {{baseUrl}}/api/v1/media/upload-sessions/SESSION_ID/complete
+Content-Type: application/json
+Authorization: Bearer {{login.response.body.$.access_token}}
+
+{
+  "etag": "\"etagopcional\""
+}
+
+###############################################################################
+### Criador (JWT com role creator ou admin)
+###############################################################################
+
+### Candidatura a criador
+POST {{baseUrl}}/api/v1/creator/apply
+Content-Type: application/json
+Authorization: Bearer {{login.response.body.$.access_token}}
+
+{
+  "bio": "Sou criador de conteúdo e quero publicar no Harém.",
+  "social_links": [
+    "https://twitter.com/exemplo",
+    "https://instagram.com/exemplo"
+  ]
+}
+
+### Dashboard do criador
+GET {{baseUrl}}/api/v1/creator/dashboard
+Authorization: Bearer {{login.response.body.$.access_token}}
+Accept: application/json
+
+### Ganhos
+GET {{baseUrl}}/api/v1/creator/earnings
+Authorization: Bearer {{login.response.body.$.access_token}}
+Accept: application/json
+
+### Catálogo (somente leitura — não há POST nesta API para criar itens; popular creator_catalog via SQL/migração/checkout futuro)
+# cursor vazio = primeira página. Para próxima página use next_cursor da resposta (RFC3339, ex.: 2026-04-30T20:13:42Z). Cursor malformado → 400.
+GET {{baseUrl}}/api/v1/creator/catalog?cursor=
+Authorization: Bearer {{login.response.body.$.access_token}}
+Accept: application/json
+
+### Pedidos (somente leitura — pedidos nascem do fluxo de compra; não há POST dedicado nesta API)
+GET {{baseUrl}}/api/v1/creator/orders?cursor=
+Authorization: Bearer {{login.response.body.$.access_token}}
+Accept: application/json
+
+### Editar bio (perfil público)
+PATCH {{baseUrl}}/api/v1/creator/profile
+Content-Type: application/json
+Authorization: Bearer {{login.response.body.$.access_token}}
+
+{
+  "bio": "Bio atualizada do criador no Harém Brasil."
+}
+
+###############################################################################
+### Admin — envie primeiro «Admin login»
+###############################################################################
+
+### Login como admin (Bearer nas rotas seguintes)
+# @name adminLogin
+POST {{baseUrl}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+### Listar utilizadores (admin)
+GET {{baseUrl}}/api/v1/admin/users?cursor=
+Authorization: Bearer {{adminLogin.response.body.$.access_token}}
+Accept: application/json
+
+### Alterar role de um utilizador
+PATCH {{baseUrl}}/api/v1/admin/users/{{targetUserId}}/role
+Content-Type: application/json
+Authorization: Bearer {{adminLogin.response.body.$.access_token}}
+
+{
+  "role": "creator"
+}
+
+### Apagar utilizador (admin)
+DELETE {{baseUrl}}/api/v1/admin/users/{{targetUserId}}
+Authorization: Bearer {{adminLogin.response.body.$.access_token}}
+
+### Estatísticas
+GET {{baseUrl}}/api/v1/admin/stats
+Authorization: Bearer {{adminLogin.response.body.$.access_token}}
+Accept: application/json
+
+### Audit log
+GET {{baseUrl}}/api/v1/admin/audit-log?cursor=
+Authorization: Bearer {{adminLogin.response.body.$.access_token}}
+Accept: application/json

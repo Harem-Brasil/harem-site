@@ -1,6 +1,9 @@
 -- Initial schema for Harém Brasil
 -- Run with: psql -d harem -f migrations/001_initial_schema.sql
 
+-- gen_random_uuid() (INSERTs abaixo) requer pgcrypto no PG 12 e anteriores; no PG 13+ é idempotente.
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 -- Users table
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY,
@@ -145,7 +148,7 @@ CREATE TABLE IF NOT EXISTS creator_applications (
     id UUID PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     bio TEXT NOT NULL,
-    social_links TEXT[],
+    social_links JSONB DEFAULT '[]'::jsonb,
     status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
     submitted_at TIMESTAMPTZ DEFAULT NOW(),
     reviewed_at TIMESTAMPTZ,

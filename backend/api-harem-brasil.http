@@ -1,0 +1,117 @@
+# Exemplos para testar a API (extensão REST Client / HTTP no VS Code).
+# Ajuste @baseUrl e preencha @accessToken após o login (ou use a resposta "Send Request" e copie access_token).
+
+@baseUrl = http://localhost:40080
+@accessToken = {{}}
+
+### Health (sem auth)
+GET {{baseUrl}}/health
+Accept: application/json
+
+### Registo — corpo mínimo válido (password: min 8 chars, maiúscula, minúscula, número e símbolo)
+POST {{baseUrl}}/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "email": "teste.criador@exemplo.com",
+  "screen_name": "TesteCriador",
+  "password": "SenhaForte!1",
+  "accept_terms_version": "1.0"
+}
+
+### Login
+POST {{baseUrl}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "teste.criador@exemplo.com",
+  "password": "SenhaForte!1"
+}
+
+### Refresh (use refresh_token devolvido no login)
+POST {{baseUrl}}/api/v1/auth/refresh
+Content-Type: application/json
+
+{
+  "refresh_token": "COLE_O_REFRESH_TOKEN"
+}
+
+### Logout (opcional: envia o refresh para revogar)
+POST {{baseUrl}}/api/v1/auth/logout
+Content-Type: application/json
+
+{
+  "refresh_token": "COLE_O_REFRESH_TOKEN"
+}
+
+### Eu (perfil) — requer Bearer
+GET {{baseUrl}}/api/v1/me
+Authorization: Bearer {{accessToken}}
+
+### Atualizar perfil (só screen_name e bio são aplicados no serviço)
+PATCH {{baseUrl}}/api/v1/me
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "screen_name": "TesteCriador",
+  "bio": "Bio de teste para a API"
+}
+
+### Criar post
+POST {{baseUrl}}/api/v1/posts
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "content": "Olá, este é um post de teste.",
+  "media_urls": [],
+  "visibility": "public"
+}
+
+### Dashboard do criador — GET, sem corpo. Requer JWT com role "creator" ou "admin"
+# Resposta típica (exemplo):
+# {
+#   "total_posts": 1,
+#   "total_likes": 0,
+#   "total_followers": 0,
+#   "subscriber_count": 0,
+#   "monthly_earnings": 0
+# }
+GET {{baseUrl}}/api/v1/creator/dashboard
+Authorization: Bearer {{accessToken}}
+
+### Candidatura a criador (mesmo grupo: só creator ou admin)
+POST {{baseUrl}}/api/v1/creator/apply
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "bio": "Sou criador de conteúdo e quero publicar no Harém.",
+  "social_links": [
+    "https://twitter.com/exemplo",
+    "https://instagram.com/exemplo"
+  ]
+}
+
+### Ganhos do criador
+GET {{baseUrl}}/api/v1/creator/earnings
+Authorization: Bearer {{accessToken}}
+
+### Catálogo do criador
+GET {{baseUrl}}/api/v1/creator/catalog
+Authorization: Bearer {{accessToken}}
+
+### Pedidos do criador
+GET {{baseUrl}}/api/v1/creator/orders
+Authorization: Bearer {{accessToken}}
+
+### Admin: alterar role de um user para "creator" (substitua :id pelo UUID do user)
+# Precisa de um JWT com role "admin" (promova um user na BD ou use conta admin existente).
+PATCH {{baseUrl}}/api/v1/admin/users/00000000-0000-0000-0000-000000000000/role
+Content-Type: application/json
+Authorization: Bearer TOKEN_ADMIN
+
+{
+  "role": "creator"
+}
