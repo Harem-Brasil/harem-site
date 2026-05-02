@@ -106,8 +106,9 @@ pipeline {
             }
             sh '''
               set -euo pipefail
+              rm -rf artifacts/frontend-dist
               mkdir -p artifacts
-              cp -r frontend/dist artifacts/frontend-dist
+              cp -r frontend/dist/. artifacts/frontend-dist
             '''
             stash name: 'frontend-dist', includes: 'artifacts/frontend-dist/**/*'
           }
@@ -430,7 +431,10 @@ REMOTE
           fi
 
           echo "=== Validate frontend deploy (VPS file check) ==="
-          REMOTE_COMMIT=$(ssh ${DEVELOP_TARGET_HOST} "grep -o 'commit-hash\" content=\"[^\"]*\"' /var/www/vhosts/develop.harembrasil.com.br/index.html | cut -d'\"' -f3" 2>/dev/null || echo 'NOT_FOUND')
+          REMOTE_COMMIT=$(ssh ${DEVELOP_TARGET_HOST} <<'VPSCHECK'
+grep -o 'commit-hash" content="[^"]*"' /var/www/vhosts/develop.harembrasil.com.br/index.html | cut -d'"' -f3 || echo NOT_FOUND
+VPSCHECK
+          )
           echo "Expected commit : $EXPECTED_COMMIT"
           echo "VPS file commit : $REMOTE_COMMIT"
           if [ "$REMOTE_COMMIT" != "$EXPECTED_COMMIT" ]; then
