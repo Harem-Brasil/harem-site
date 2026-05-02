@@ -373,21 +373,24 @@ set -euo pipefail
 FRONTEND_LOCAL="artifacts/frontend-dist/client"
 ARCHIVE="/tmp/frontend-develop-$(git rev-parse --short HEAD).tar.gz"
 
-# Criar arquivo tar localmente e fazer upload via scp (evita que erros remotos sejam silenciados pelo pipe)
+# Criar arquivo tar localmente e fazer upload via scp
 tar -C "$FRONTEND_LOCAL" -czf "$ARCHIVE" .
 scp "$ARCHIVE" ${DEVELOP_TARGET_HOST}:/tmp/frontend-develop.tar.gz
 rm -f "$ARCHIVE"
 
-# Extrair remotamente em etapa separada para que erros SSH sejam detectados
-ssh ${DEVELOP_TARGET_HOST} "
+# Extrair remotamente — usar heredoc com aspas simples para evitar expansão local
+ssh ${DEVELOP_TARGET_HOST} <<'REMOTE'
   set -euo pipefail
-  sudo mkdir -p ${DEVELOP_FRONTEND_DIR}
-  sudo find ${DEVELOP_FRONTEND_DIR} -mindepth 1 -delete
-  sudo tar -C ${DEVELOP_FRONTEND_DIR} -xzf /tmp/frontend-develop.tar.gz
-  sudo chown -R ${DEVELOP_SERVICE_USER}:${DEVELOP_SERVICE_USER} ${DEVELOP_FRONTEND_DIR}
+  sudo mkdir -p /var/www/vhosts/develop.harembrasil.com.br
+  sudo find /var/www/vhosts/develop.harembrasil.com.br -mindepth 1 -not -path "*/logs*" -delete
+  sudo tar -C /var/www/vhosts/develop.harembrasil.com.br -xzf /tmp/frontend-develop.tar.gz
+  sudo chown -R grimlock:grimlock /var/www/vhosts/develop.harembrasil.com.br
   rm -f /tmp/frontend-develop.tar.gz
-  echo \"Frontend extracted: $(ls ${DEVELOP_FRONTEND_DIR})\"
-"
+  echo "=== Files on VPS after deploy ==="
+  ls -la /var/www/vhosts/develop.harembrasil.com.br/
+  echo "=== index.html commit hash on VPS ==="
+  grep -o 'commit-hash[^>]*>' /var/www/vhosts/develop.harembrasil.com.br/index.html || echo "WARNING: Could not read index.html"
+REMOTE
 '''
       }
     }
@@ -426,15 +429,26 @@ ssh ${DEVELOP_TARGET_HOST} "
             echo "$ENV_HEADER"
           fi
 
-          echo "=== Validate frontend deploy ==="
+          echo "=== Validate frontend deploy (VPS file check) ==="
+          REMOTE_COMMIT=$(ssh ${DEVELOP_TARGET_HOST} "grep -o 'commit-hash\" content=\"[^\"]*\"' /var/www/vhosts/develop.harembrasil.com.br/index.html | cut -d'\"' -f3" 2>/dev/null || echo 'NOT_FOUND')
+          echo "Expected commit : $EXPECTED_COMMIT"
+          echo "VPS file commit : $REMOTE_COMMIT"
+          if [ "$REMOTE_COMMIT" != "$EXPECTED_COMMIT" ]; then
+            echo "ERROR: index.html on VPS has wrong commit — file deployment failed!"
+            exit 1
+          fi
+          echo "OK: VPS file matches expected commit"
+
+          echo "=== Validate frontend deploy (HTTP check) ==="
           FRONTEND_HTML=$(curl -sf "https://develop.harembrasil.com.br/" || true)
           DEPLOYED_COMMIT=$(echo "$FRONTEND_HTML" | grep -o 'commit-hash" content="[^"]*"' | cut -d'"' -f3 || true)
-          echo "Expected commit: $EXPECTED_COMMIT"
-          echo "Deployed commit: $DEPLOYED_COMMIT"
+          echo "HTTP commit : $DEPLOYED_COMMIT"
           if [ "$DEPLOYED_COMMIT" = "$EXPECTED_COMMIT" ]; then
-            echo "OK: Frontend commit hash matches"
+            echo "OK: Frontend HTTP response matches expected commit"
           else
-            echo "ERROR: Frontend commit hash mismatch — deploy may have failed!"
+            echo "ERROR: HTTP response has wrong commit ($DEPLOYED_COMMIT != $EXPECTED_COMMIT)"
+            echo "HINT: VPS files are correct but nginx may be serving from a different directory."
+            echo "Check nginx root directive on the VPS."
             exit 1
           fi
 
