@@ -8,11 +8,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/harem-brasil/backend/internal/domain"
 	"github.com/harem-brasil/backend/internal/middleware"
 	"github.com/harem-brasil/backend/internal/utils"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 func (s *Services) PostCreatorApply(ctx context.Context, user *middleware.UserClaims, bio string, socialLinks []string) (*domain.CreatorApplication, error) {

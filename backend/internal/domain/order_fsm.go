@@ -4,12 +4,12 @@ package domain
 // Fluxo alinhado a billing/webhooks (HB-EPIC-06): requested → awaiting_payment → paid → fulfilled;
 // terminais: fulfilled, canceled, refunded.
 const (
-	OrderStatusRequested        = "requested"
-	OrderStatusAwaitingPayment  = "awaiting_payment"
-	OrderStatusPaid             = "paid"
-	OrderStatusFulfilled        = "fulfilled"
-	OrderStatusCanceled         = "canceled"
-	OrderStatusRefunded         = "refunded"
+	OrderStatusRequested       = "requested"
+	OrderStatusAwaitingPayment = "awaiting_payment"
+	OrderStatusPaid            = "paid"
+	OrderStatusFulfilled       = "fulfilled"
+	OrderStatusCanceled        = "canceled"
+	OrderStatusRefunded        = "refunded"
 )
 
 // Transições válidas (origem → destinos). Regras aplicadas no domínio antes da persistência.
