@@ -371,15 +371,22 @@ SERVICEFILE
         sh label: 'Deploy frontend to develop (VPS)', script: '''
 set -euo pipefail
 FRONTEND_LOCAL="artifacts/frontend-dist/client"
+ARCHIVE="/tmp/frontend-develop-$(git rev-parse --short HEAD).tar.gz"
 
-# Upload e extração usando tar para eficiência e preservação de permissões/arquivos ocultos
-tar -C "$FRONTEND_LOCAL" -cz . | ssh ${DEVELOP_TARGET_HOST} "
+# Criar arquivo tar localmente e fazer upload via scp (evita que erros remotos sejam silenciados pelo pipe)
+tar -C "$FRONTEND_LOCAL" -czf "$ARCHIVE" .
+scp "$ARCHIVE" ${DEVELOP_TARGET_HOST}:/tmp/frontend-develop.tar.gz
+rm -f "$ARCHIVE"
+
+# Extrair remotamente em etapa separada para que erros SSH sejam detectados
+ssh ${DEVELOP_TARGET_HOST} "
   set -euo pipefail
   sudo mkdir -p ${DEVELOP_FRONTEND_DIR}
-  # Limpar conteúdo anterior de forma segura (incluindo arquivos ocultos)
   sudo find ${DEVELOP_FRONTEND_DIR} -mindepth 1 -delete
-  sudo tar -C ${DEVELOP_FRONTEND_DIR} -xz
+  sudo tar -C ${DEVELOP_FRONTEND_DIR} -xzf /tmp/frontend-develop.tar.gz
   sudo chown -R ${DEVELOP_SERVICE_USER}:${DEVELOP_SERVICE_USER} ${DEVELOP_FRONTEND_DIR}
+  rm -f /tmp/frontend-develop.tar.gz
+  echo \"Frontend extracted: $(ls ${DEVELOP_FRONTEND_DIR})\"
 "
 '''
       }
@@ -390,7 +397,9 @@ tar -C "$FRONTEND_LOCAL" -cz . | ssh ${DEVELOP_TARGET_HOST} "
       steps {
         sh label: 'Health check and smoke test develop API', script: '''
           set -euo pipefail
-          # Aguardar API develop ficar disponível (health endpoint sem /api/v1 prefix)
+          EXPECTED_COMMIT=$(git rev-parse --short HEAD)
+
+          # Aguardar API develop ficar disponível
           for i in {1..30}; do
             if curl -sf "${DEVELOP_API_URL}/health" > /dev/null 2>&1; then
               echo "Develop API is up"
@@ -400,7 +409,6 @@ tar -C "$FRONTEND_LOCAL" -cz . | ssh ${DEVELOP_TARGET_HOST} "
             sleep 2
           done
 
-          # Smoke tests: validar endpoints criticos
           echo "=== Health check ==="
           curl -sf -D - "${DEVELOP_API_URL}/health" | head -c 200 || true
           echo ""
@@ -416,6 +424,18 @@ tar -C "$FRONTEND_LOCAL" -cz . | ssh ${DEVELOP_TARGET_HOST} "
           else
             echo "WARN: X-Environment header missing or not 'develop'"
             echo "$ENV_HEADER"
+          fi
+
+          echo "=== Validate frontend deploy ==="
+          FRONTEND_HTML=$(curl -sf "https://develop.harembrasil.com.br/" || true)
+          DEPLOYED_COMMIT=$(echo "$FRONTEND_HTML" | grep -o 'commit-hash" content="[^"]*"' | cut -d'"' -f3 || true)
+          echo "Expected commit: $EXPECTED_COMMIT"
+          echo "Deployed commit: $DEPLOYED_COMMIT"
+          if [ "$DEPLOYED_COMMIT" = "$EXPECTED_COMMIT" ]; then
+            echo "OK: Frontend commit hash matches"
+          else
+            echo "ERROR: Frontend commit hash mismatch — deploy may have failed!"
+            exit 1
           fi
 
           echo "=== Smoke test passed ==="
